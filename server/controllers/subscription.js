@@ -256,7 +256,7 @@ exports.buySubscription = async (req, res) => {
     await Subscription.deleteMany({
       userId,
       "service.serviceType": profileType,
-      "service.status": "Pending"
+     "service.status": { $in: ["Pending"] }
     });
 
     // ✅ Check for active subscription
@@ -339,6 +339,29 @@ exports.buySubscription = async (req, res) => {
   }
 };
 
+exports.cancelPendingSubscription = async (req, res) => {
+  try {
+    const { userId, profileType } = req.body;
+
+    if (!userId || !profileType) {
+      return res.status(400).json({ status: false, message: "userId and profileType are required." });
+    }
+
+    const deleted = await Subscription.deleteMany({
+      userId,
+      "service.serviceType": profileType,
+      "service.status": "Pending"
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: "Pending subscription cleared. You can now buy again.",
+      deletedCount: deleted.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ status: false, message: "Server error", error: error.message });
+  }
+};
 
 exports.verifyPayment = async (req, res) => {
   try {
@@ -504,77 +527,6 @@ exports.getSubscriptionHistory = async (req, res) => {
   }
 };
 
-//setTrial depend on serviceType
-// exports.setTrialSubscription = async (req, res) => {
-//   try {
-//     const userId = req?.user?._id;
-//     const { serviceType, trialPeriod } = req.body;
-
-//     if (!["Biodata", "Pandit", "Kathavachak", "Jyotish"].includes(serviceType)) {
-//       return res.status(400).json({ status: false, message: "Invalid serviceType" });
-//     }
-
-//     const user = await User.findById(userId);
-//     if (!user) return res.status(400).json({ status: false, message: "User not found" });
-
-//     const existingPaid = user.serviceSubscriptions.find(
-//       sub => sub.serviceType === serviceType && sub.subscriptionType === "Paid"
-//     )
-
-//     if (existingPaid) {
-//       return res.status(400).json({
-//         status: false,
-//         message: `Paid Subcription already requested or activated for ${serviceType}`,
-//       });
-//     }
-
-//     const existingTrial = user.serviceSubscriptions.find(
-//       sub => sub.serviceType === serviceType && sub.subscriptionType === "Trial"
-//     );
-
-//     if (existingTrial) {
-//       return res.status(400).json({
-//         status: false,
-//         message: `Trial Plan already requested or used for ${serviceType}`,
-//       });
-//     }
-
-//     const today = new Date();
-//     const endDate = new Date(today);
-//     endDate.setDate(today.getDate() + parseInt(trialPeriod)); // trialPeriod in days
-//     let trialSubscription = {
-//       serviceType,
-//       subscriptionType: "Trial",
-//       trialPeriod: parseInt(trialPeriod) // ✅ store trialPeriod for later admin use
-//     };
-
-//     if (serviceType === "Biodata") {
-//       trialSubscription.startDate = today;
-//       trialSubscription.endDate = endDate;
-//       trialSubscription.status = "Active";
-//     } else {
-//       trialSubscription.status = "Pending"; // start/end date will be set by admin later
-//     }
-
-//     user.serviceSubscriptions.push(trialSubscription);
-//     await user.save();
-
-//     return res.status(200).json({
-//       status: true,
-//       message: `Trial ${serviceType === "Biodata" ? "activated" : "requested"} for ${serviceType}`,
-//       subscription: trialSubscription
-//     });
-
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({
-//       status: false,
-//       message: "Error setting trial subscription",
-//       error: err.message
-//     });
-//   }
-// };
-
 exports.setTrialSubscription = async (req, res) => {
   try {
     const userId = req?.user?._id;
@@ -709,3 +661,76 @@ function getServiceName(profileType) {
   };
   return serviceNames[profileType] || "Unknown Service";
 }
+
+
+
+//setTrial depend on serviceType
+// exports.setTrialSubscription = async (req, res) => {
+//   try {
+//     const userId = req?.user?._id;
+//     const { serviceType, trialPeriod } = req.body;
+
+//     if (!["Biodata", "Pandit", "Kathavachak", "Jyotish"].includes(serviceType)) {
+//       return res.status(400).json({ status: false, message: "Invalid serviceType" });
+//     }
+
+//     const user = await User.findById(userId);
+//     if (!user) return res.status(400).json({ status: false, message: "User not found" });
+
+//     const existingPaid = user.serviceSubscriptions.find(
+//       sub => sub.serviceType === serviceType && sub.subscriptionType === "Paid"
+//     )
+
+//     if (existingPaid) {
+//       return res.status(400).json({
+//         status: false,
+//         message: `Paid Subcription already requested or activated for ${serviceType}`,
+//       });
+//     }
+
+//     const existingTrial = user.serviceSubscriptions.find(
+//       sub => sub.serviceType === serviceType && sub.subscriptionType === "Trial"
+//     );
+
+//     if (existingTrial) {
+//       return res.status(400).json({
+//         status: false,
+//         message: `Trial Plan already requested or used for ${serviceType}`,
+//       });
+//     }
+
+//     const today = new Date();
+//     const endDate = new Date(today);
+//     endDate.setDate(today.getDate() + parseInt(trialPeriod)); // trialPeriod in days
+//     let trialSubscription = {
+//       serviceType,
+//       subscriptionType: "Trial",
+//       trialPeriod: parseInt(trialPeriod) // ✅ store trialPeriod for later admin use
+//     };
+
+//     if (serviceType === "Biodata") {
+//       trialSubscription.startDate = today;
+//       trialSubscription.endDate = endDate;
+//       trialSubscription.status = "Active";
+//     } else {
+//       trialSubscription.status = "Pending"; // start/end date will be set by admin later
+//     }
+
+//     user.serviceSubscriptions.push(trialSubscription);
+//     await user.save();
+
+//     return res.status(200).json({
+//       status: true,
+//       message: `Trial ${serviceType === "Biodata" ? "activated" : "requested"} for ${serviceType}`,
+//       subscription: trialSubscription
+//     });
+
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({
+//       status: false,
+//       message: "Error setting trial subscription",
+//       error: err.message
+//     });
+//   }
+// };

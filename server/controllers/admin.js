@@ -1523,7 +1523,54 @@ const specialistController = async (req, res) => {
     }
 
     const { model, field } = models[userType];
-
+    if (action === "toggleAccessWithSubscription" && userId) {
+      const { startDate, endDate, serviceType } = req.body;
+    
+      const user = await model.findById(userId);
+      if (!user) {
+        return res.status(400).json({ status: false, message: "User not found" });
+      }
+    
+      const newIsEnabled = !user.isEnabled;
+      user.isEnabled = newIsEnabled;
+      await user.save({ validateBeforeSave: false });
+    
+      const linkedUser = await User.findById(user.userId);
+      if (linkedUser && serviceType) {
+        const existingSubIndex = linkedUser.serviceSubscriptions.findIndex(
+          (sub) => sub.serviceType === serviceType
+        );
+    
+        if (newIsEnabled && startDate && endDate) {
+          const subData = {
+            serviceType,
+            subscriptionType: "Paid",
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            status: "Active",
+          };
+          if (existingSubIndex !== -1) {
+            linkedUser.serviceSubscriptions[existingSubIndex] = {
+              ...linkedUser.serviceSubscriptions[existingSubIndex].toObject(),
+              ...subData,
+            };
+          } else {
+            linkedUser.serviceSubscriptions.push(subData);
+          }
+        } else if (!newIsEnabled && existingSubIndex !== -1) {
+          linkedUser.serviceSubscriptions[existingSubIndex].status = "Expired";
+          linkedUser.serviceSubscriptions[existingSubIndex].endDate = new Date();
+        }
+    
+        await linkedUser.save();
+      }
+    
+      return res.status(200).json({
+        status: true,
+        message: `Access ${newIsEnabled ? "enabled" : "disabled"} successfully`,
+      });
+    }
+    
     if (action === "toggleAccess" && userId) {
       const user = await model.findById(userId);
       if (!user) {
@@ -1852,6 +1899,21 @@ const setMetrionial_ActivityStatus = async (req, res) => {
       profile.activeEndDate = null;
       await profile.save();
 
+      // Update user's Biodata serviceSubscription to Expired
+      await User.findByIdAndUpdate(
+        profile.userId, // assuming Biodata has a userId reference
+        {
+          $set: {
+            "serviceSubscriptions.$[elem].status": "Expired",
+            "serviceSubscriptions.$[elem].endDate": new Date(),
+          },
+        },
+        {
+          arrayFilters: [{ "elem.serviceType": "Biodata" }],
+          new: true,
+        }
+      );
+
       return res.status(200).json({
         status: true,
         message: "Matrimonial profile has been deactivated.",
@@ -1866,7 +1928,6 @@ const setMetrionial_ActivityStatus = async (req, res) => {
     // ── Activate (Inactive → Active) with date range ───────────────────────────
     if (profile.activityStatus === "Inactive") {
 
-      // Both dates are required when activating
       if (!startDate || !endDate) {
         return res.status(400).json({
           status: false,
@@ -1902,6 +1963,35 @@ const setMetrionial_ActivityStatus = async (req, res) => {
       profile.activeStartDate = start;
       profile.activeEndDate = end;
       await profile.save();
+
+      // ── Update or Insert user's Biodata serviceSubscription ──────────────────
+      const user = await User.findById(profile.userId);
+
+      if (!user) {
+        return res.status(404).json({ status: false, message: "Associated user not found." });
+      }
+
+      const existingSubIndex = user.serviceSubscriptions.findIndex(
+        (sub) => sub.serviceType === "Biodata"
+      );
+
+      if (existingSubIndex !== -1) {
+        // Update existing Biodata subscription
+        user.serviceSubscriptions[existingSubIndex].status = "Active";
+        user.serviceSubscriptions[existingSubIndex].startDate = start;
+        user.serviceSubscriptions[existingSubIndex].endDate = end;
+      } else {
+        // Push new Biodata subscription if not present
+        user.serviceSubscriptions.push({
+          serviceType: "Biodata",
+          subscriptionType: "Paid",
+          startDate: start,
+          endDate: end,
+          status: "Active",
+        });
+      }
+
+      await user.save();
 
       return res.status(200).json({
         status: true,

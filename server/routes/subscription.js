@@ -11,6 +11,7 @@ router.patch('/updatePlan', upload.single('photo'), verifyAdminToken, controller
 router.delete('/deletePlan/:planId', verifyAdminToken, controller.deleteSubscriptionPlan);
 router.delete('/deleteRecord/:id', verifyAdminToken, controller.deleteSubscriptionRecord);
 router.post('/buy', verifyToken, controller.buySubscription);
+router.post('/cancel-pending', controller.cancelPendingSubscription);
 router.post('/setTrial', verifyToken, controller.setTrialSubscription);
 router.post('/verifyPayment', controller.verifyPayment);
 router.get('/getRazorPayKey', verifyToken, controller.getRazorPayKey);

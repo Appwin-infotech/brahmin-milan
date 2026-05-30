@@ -30,7 +30,7 @@ router.get("/getAllStoryRequests", verifyAdminToken, controller.getAllStoryReque
 router.get("/getAllUsers", verifyAdminToken, controller.getAllUsers);
 router.get("/getAllReports", verifyAdminToken, controller.getAllReports);
 router.get("/specialists/:userType/:customId", controller.fetchSpecialist)
-router.get('/specialists/:userType', controller.specialistController);
+router.patch('/specialists/:userType', controller.specialistController);
 router.get('/getAllFeedBacks', verifyAdminToken, controller.getAllFeedBacks);
 router.get('/getAllMetrionial', verifyAdminToken, controller.getAllMetrimonial);
 router.get('/getAllAdvertisement-Request', verifyAdminToken, controller.getAllAdvertisementRequest);

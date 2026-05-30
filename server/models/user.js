@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
   photoUrl: {
     type: [String],
     required: false
-  }, 
+  },
   userId: {
     type: String,
     required: true,
@@ -44,15 +44,15 @@ const userSchema = new mongoose.Schema({
       },
       message: props => `${props.value} is not a valid userId! It should be in the format 'XX0001' to 'ZZ9999'.`
     }
-  },  
+  },
   fcmToken: {
     type: String,
   },
-  connReqNotification:{
+  connReqNotification: {
     type: Boolean,
     default: true
   },
-  eventPostNotification:{
+  eventPostNotification: {
     type: Boolean,
     default: true
   },
@@ -61,20 +61,20 @@ const userSchema = new mongoose.Schema({
     enum: ["enable", "disable"],
     default: "enable"
   },
-   // Individual service subscription details
-   serviceSubscriptions: [{
+  // Individual service subscription details
+  serviceSubscriptions: [{
     serviceType: {
       type: String,
-      enum: ["Pandit", "Kathavachak", "Jyotish", "Biodata"], 
+      enum: ["Pandit", "Kathavachak", "Jyotish", "Biodata"],
       required: true
     },
     subscriptionType: {
       type: String,
-      enum: ["Trial", "Paid"], 
+      enum: ["Trial", "Paid"],
       required: true
     },
-    startDate: { type: Date},
-    endDate: { type: Date},
+    startDate: { type: Date },
+    endDate: { type: Date },
     status: {
       type: String,
       enum: ["Pending", "Active", "Expired"],
