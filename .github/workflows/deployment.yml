@@ -42,7 +42,7 @@ steps:
   - name: Start backend with PM2
     working-directory: ./server
     run: |
-      /usr/local/bin/pm2 restart backend || /usr/local/bin/pm2 start server.js --name backend
+      /usr/local/bin/pm2 restart backend || /usr/local/bin/pm2 start index.js --name backend
       /usr/local/bin/pm2 save
 
   # ------------------------------
