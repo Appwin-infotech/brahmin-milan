@@ -1,0 +1,77 @@
+name: Deploy Fullstack App 
+
+on:
+push:
+branches:
+- main
+
+jobs:
+deploy:
+runs-on: self-hosted
+
+```
+strategy:
+  matrix:
+    node-version: [22.x]
+
+steps:
+  - name: Checkout code
+    uses: actions/checkout@v3
+
+  - name: Use Node.js ${{ matrix.node-version }}
+    uses: actions/setup-node@v3
+    with:
+      node-version: ${{ matrix.node-version }}
+      cache: 'npm'
+      cache-dependency-path: |
+        server/package-lock.json
+        client/package-lock.json
+
+  # ------------------------------
+  # BACKEND SETUP
+  # ------------------------------
+  - name: Install backend dependencies
+    working-directory: ./server
+    run: npm ci
+
+  - name: Create backend .env file
+    working-directory: ./server
+    run: |
+      echo "${{ secrets.PROD_BACKEND_ENV }}" > .env
+
+  - name: Start backend with PM2
+    working-directory: ./server
+    run: |
+      /usr/local/bin/pm2 restart backend || /usr/local/bin/pm2 start server.js --name backend
+      /usr/local/bin/pm2 save
+
+  # ------------------------------
+  # FRONTEND SETUP
+  # ------------------------------
+  - name: Install frontend dependencies
+    working-directory: ./client
+    run: npm ci
+
+  - name: Create frontend .env file
+    working-directory: ./client
+    run: |
+      echo "${{ secrets.PROD_FRONTEND_ENV }}" > .env
+
+  - name: Build frontend
+    working-directory: ./client
+    run: npm run build
+
+  # ------------------------------
+  # DEPLOY FRONTEND
+  # ------------------------------
+  - name: Deploy frontend to Nginx
+    run: |
+      sudo mkdir -p /var/www/projects/matrimonial/admin/dist
+      sudo rm -rf /var/www/projects/matrimonial/admin/dist/*
+      sudo cp -r ./client/dist/* /var/www/projects/matrimonial/admin/dist/
+
+  # ------------------------------
+  # RELOAD NGINX
+  # ------------------------------
+  - name: Reload Nginx
+    run: sudo systemctl reload nginx
