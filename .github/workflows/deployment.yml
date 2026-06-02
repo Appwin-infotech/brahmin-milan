@@ -9,10 +9,11 @@ jobs:
 deploy:
 runs-on: self-hosted
 
-
+```
 strategy:
   matrix:
-    node-version: [22.x]
+    node-version:
+      - 22.x
 
 steps:
   # ------------------------------
@@ -28,7 +29,7 @@ steps:
     uses: actions/setup-node@v3
     with:
       node-version: ${{ matrix.node-version }}
-      cache: 'npm'
+      cache: npm
       cache-dependency-path: |
         server/package-lock.json
         client/package-lock.json
@@ -96,4 +97,4 @@ steps:
     run: |
       sudo rm -rf /var/www/html/*
       sudo cp -r ./client/dist/* /var/www/html/
-
+```
