@@ -9,7 +9,6 @@ jobs:
 deploy:
 runs-on: self-hosted
 
-```
 strategy:
   matrix:
     node-version:
@@ -97,4 +96,4 @@ steps:
     run: |
       sudo rm -rf /var/www/html/*
       sudo cp -r ./client/dist/* /var/www/html/
-```
+
