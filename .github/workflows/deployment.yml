@@ -33,7 +33,12 @@ jobs:
         working-directory: ./server
         run: npm install
 
-      - name: Create backend .env file working-directory: ./server run: | cat > .env << 'EOF' ${{ secrets.PROD_BACKEND_ENV }} EOF
+      - name: Create backend .env file
+        working-directory: ./server 
+        run: | 
+          cat > .env << 'EOF' 
+          ${{ secrets.PROD_BACKEND_ENV }} 
+          EOF
 
       - name: Start backend with PM2
         working-directory: ./server
