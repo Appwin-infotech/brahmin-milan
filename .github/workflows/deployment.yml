@@ -1,99 +1,69 @@
-name: Deploy Fullstack App
+name: Deploy Fullstack App 
 
 on:
-push:
-branches:
-- main
+  push:
+    branches:
+      - main
 
 jobs:
-deploy:
-runs-on: self-hosted
+  deploy:
+    runs-on: self-hosted
 
-strategy:
-  matrix:
-    node-version:
-      - 22.x
+    strategy:
+      matrix:
+        node-version: [22.x]
 
-steps:
-  # ------------------------------
-  # CHECKOUT CODE
-  # ------------------------------
-  - name: Checkout code
-    uses: actions/checkout@v3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-  # ------------------------------
-  # SETUP NODE
-  # ------------------------------
-  - name: Use Node.js ${{ matrix.node-version }}
-    uses: actions/setup-node@v3
-    with:
-      node-version: ${{ matrix.node-version }}
-      cache: npm
-      cache-dependency-path: |
-        server/package-lock.json
-        client/package-lock.json
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
 
-  # ------------------------------
-  # BACKEND SETUP
-  # ------------------------------
-  - name: Install backend dependencies
-    working-directory: ./server
-    run: npm install
+      # ------------------------------
+      # BACKEND SETUP
+      # ------------------------------
+      - name: Install backend dependencies
+        working-directory: ./server
+        run: npm install
 
-  # ------------------------------
-  # CREATE BACKEND ENV
-  # ------------------------------
-  - name: Create backend .env file
-    working-directory: ./server
-    run: |
-      cat > .env << 'EOF'
-      ${{ secrets.PROD_BACKEND_ENV }}
-      EOF
+      - name: Create backend .env file working-directory: ./server run: | cat > .env << 'EOF' ${{ secrets.PROD_BACKEND_ENV }} EOF
 
-  # ------------------------------
-  # START BACKEND WITH PM2
-  # ------------------------------
-  - name: Start backend with PM2
-    working-directory: ./server
-    run: |
-      pm2 restart backend || pm2 start index.js --name backend
-      pm2 save
+      - name: Start backend with PM2
+        working-directory: ./server
+        run: |
+          pm2 restart backend || pm2 start index.js --name backend
 
-  # ------------------------------
-  # FRONTEND SETUP
-  # ------------------------------
-  - name: Clean npm cache & remove existing dependencies
-    working-directory: ./client
-    run: |
-      rm -rf node_modules package-lock.json
-      npm cache clean --force
+      # ------------------------------
+      # FRONTEND SETUP
+      # ------------------------------
+      - name: Clean npm cache & remove existing dependencies
+        working-directory: ./client
+        run: |
+          rm -rf node_modules package-lock.json
+          npm cache clean --force
 
-  - name: Install frontend dependencies
-    working-directory: ./client
-    run: npm install
+      - name: Install frontend dependencies
+        working-directory: ./client
+        run: npm install
 
-  # ------------------------------
-  # CREATE FRONTEND ENV
-  # ------------------------------
-  - name: Create frontend .env file
-    working-directory: ./client
-    run: |
-      cat > .env << 'EOF'
-      ${{ secrets.PROD_FRONTEND_ENV }}
-      EOF
+      - name: Create frontend .env file
+        working-directory: ./client
+        run: |
+          touch .env
+          echo "${{ secrets.PROD_FRONTEND_ENV }}" > .env
 
-  # ------------------------------
-  # BUILD FRONTEND
-  # ------------------------------
-  - name: Build frontend
-    working-directory: ./client
-    run: npm run build
+      - name: Build frontend
+        working-directory: ./client
+        run: npm run build
 
-  # ------------------------------
-  # DEPLOY FRONTEND
-  # ------------------------------
-  - name: Deploy frontend to Nginx
-    run: |
-      sudo rm -rf /var/www/html/*
-      sudo cp -r ./client/dist/* /var/www/html/
-
+      - name: Deploy frontend to Nginx
+        run: |
+          sudo rm -rf /var/www/html/*
+          sudo cp -r ./client/dist/* /var/www/html/
