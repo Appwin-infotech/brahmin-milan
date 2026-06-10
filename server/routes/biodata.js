@@ -9,7 +9,7 @@ router.post(
   '/createPersonalDetails',
   verifyToken,
   upload.fields([
-    { name: 'closeUpPhotos', maxCount: 3 }, 
+    { name: 'closeUpPhoto', maxCount: 3 }, 
   ]),
   controller.createPersonalDetails
 );
@@ -17,7 +17,7 @@ router.put(
   '/updatePersonalDetails',
   verifyToken,
   upload.fields([
-    { name: 'closeUpPhotos', maxCount: 3 },
+    { name: 'closeUpPhoto', maxCount: 3 },
   ]),
   controller.updatePersonalDetails
 );

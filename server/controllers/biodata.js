@@ -52,8 +52,8 @@ const createPersonalDetails = async (req, res) => {
       });
     }
 
-    // ✅ Handle closeUpPhotos: validate 1–3 files, store as array of paths
-    const uploadedPhotos = req.files?.['closeUpPhotos'];
+    // ✅ Handle closeUpPhoto: validate 1–3 files, store as array of paths
+    const uploadedPhotos = req.files?.['closeUpPhoto'];
 
     if (!uploadedPhotos || uploadedPhotos.length === 0) {
       return res.status(400).json({
@@ -69,7 +69,7 @@ const createPersonalDetails = async (req, res) => {
       });
     }
 
-    personalDetails.closeUpPhotos = uploadedPhotos.map((file) =>
+    personalDetails.closeUpPhoto = uploadedPhotos.map((file) =>
       file.path.replace(/\\/g, "/")
     );
 
@@ -112,7 +112,7 @@ const createPersonalDetails = async (req, res) => {
     const admins = await Admin.find();
     if (admins.length > 0) {
       // ✅ Use first photo in array as the preview photo for notifications
-      const previewPhoto = biodata?.personalDetails?.closeUpPhotos?.[0];
+      const previewPhoto = biodata?.personalDetails?.closeUpPhoto?.[0];
       const notificationMessage = `${biodata?.personalDetails?.fullname} has created a Matrimonial Profile.`;
 
       for (const admin of admins) {
@@ -192,10 +192,10 @@ const updatePersonalDetails = async (req, res) => {
       });
     }
 
-    // ─── Handle closeUpPhotos array ────────────────────────────────────────────
+    // ─── Handle closeUpPhoto array ────────────────────────────────────────────
 
     // Start with existing photos
-    let existingPhotos = biodata.personalDetails?.closeUpPhotos || [];
+    let existingPhotos = biodata.personalDetails?.closeUpPhoto || [];
 
     // Step 1: Remove photos if client sent removePhotos (URL or array of URLs)
     // Client sends:  removePhotos: "/uploads/abc.jpg"
@@ -206,7 +206,7 @@ const updatePersonalDetails = async (req, res) => {
     }
 
     // Step 2: Append newly uploaded photos
-    const uploadedPhotos = req.files?.['closeUpPhotos'] || [];
+    const uploadedPhotos = req.files?.['closeUpPhoto'] || [];
     const newPhotoPaths = uploadedPhotos.map((file) =>
       file.path.replace(/\\/g, "/")
     );
@@ -227,7 +227,7 @@ const updatePersonalDetails = async (req, res) => {
       });
     }
 
-    personalDetails.closeUpPhotos = mergedPhotos;
+    personalDetails.closeUpPhoto = mergedPhotos;
 
     // ──────────────────────────────────────────────────────────────────────────
 
