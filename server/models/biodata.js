@@ -37,9 +37,17 @@ const personalDetailsSchema = new mongoose.Schema({
   tobaccoHabits: { type: String, required: false },
   drinkingHabit: { type: String, required: false },
   hobbies: { type: String, required: false },
-  closeUpPhoto: { type: String, required: true },
-  fullPhoto: { type: String, required: false },
-  bestPhoto: { type: String, required: false },
+  // closeUpPhoto: { type: String, required: true },
+  // fullPhoto: { type: String, required: false },
+  // bestPhoto: { type: String, required: false },
+  closeUpPhoto: { 
+    type: [String], 
+    required: true,
+    validate: {
+      validator: (arr) => arr.length >= 1 && arr.length <= 3,
+      message: "closeUpPhoto must have between 1 and 3 photos."
+    }
+  },
 });
 
 const partnerPreferencesSchema = new mongoose.Schema({
