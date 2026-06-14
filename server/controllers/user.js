@@ -59,7 +59,7 @@ const SignUp = async (req, res) => {
         message: "Invalid mobile number! Please enter a valid mobile number.",
       });
     }
-    
+
     // Validate gender
     const validGenders = ["male", "female"];
     if (!validGenders.includes(gender.toLowerCase())) {
@@ -281,7 +281,7 @@ const fetchUserProfile = async (req, res) => {
     const totalReviews = profileData?.ratings?.length || 0;
     const averageRating = totalReviews
       ? profileData?.ratings?.reduce((acc, rating) => acc + rating.rating, 0) /
-        totalReviews
+      totalReviews
       : 0;
 
     // Format response data
@@ -454,10 +454,10 @@ const updateProfileImage = async (req, res) => {
       return res.status(401).json({ status: false, message: "Unauthorized." });
     }
 
-  // Build relative path to store in DB
-   const filePath = `uploads/${req.file.filename}`;
+    // Build relative path to store in DB
+    const filePath = `uploads/${req.file.filename}`;
 
-   // Update user's profile image URL
+    // Update user's profile image URL
     loggedInUser.photoUrl = filePath;
 
     await loggedInUser.save();
@@ -528,11 +528,11 @@ const feed = async (req, res) => {
     let skip = 0;
     let page = 1;
 
-if (req.query.limit) {
-  limit = Math.min(Math.max(1, parseInt(req.query.limit)), 50);
-  page = Math.max(1, parseInt(req.query.page) || 1);
-  skip = (page - 1) * limit;
-}
+    if (req.query.limit) {
+      limit = Math.min(Math.max(1, parseInt(req.query.limit)), 50);
+      page = Math.max(1, parseInt(req.query.page) || 1);
+      skip = (page - 1) * limit;
+    }
 
     const loggedInUser = req.user;
 
@@ -604,8 +604,8 @@ if (req.query.limit) {
         finalSearchQuery,
         loggedInUserBiodata?.gender
           ? {
-              gender: loggedInUserBiodata.gender === "male" ? "female" : "male",
-            }
+            gender: loggedInUserBiodata.gender === "male" ? "female" : "male",
+          }
           : {},
         { userId: { $ne: loggedInUser._id } },
         { activityStatus: { $ne: "Inactive" } },
@@ -691,7 +691,7 @@ const matchMatrimonialProfile = async (req, res) => {
       });
     }
 
-        // Check if biodata is deactivated by Brahmin Milan Team
+    // Check if biodata is deactivated by Brahmin Milan Team
     if (loggedInUserBiodata.activityStatus === "Inactive") {
       return res.status(400).json({
         status: false,
@@ -739,10 +739,10 @@ const matchMatrimonialProfile = async (req, res) => {
     });
 
     const connectionStatus = existingRequest
-  ? existingRequest.fromUserId.toString() === loggedInUser._id.toString()
-    ? "sent"
-    : "received"
-  : "none";
+      ? existingRequest.fromUserId.toString() === loggedInUser._id.toString()
+        ? "sent"
+        : "received"
+      : "none";
 
     const requestStatus = existingRequest?.status || null;
     const requestId = existingRequest?._id || null;
@@ -768,7 +768,7 @@ const matchMatrimonialProfile = async (req, res) => {
       if (
         typeof prefValue === "string" &&
         prefValue.replace(/[‘’]/g, "'").trim().toLowerCase() ===
-          "doesn't matter"
+        "doesn't matter"
       ) {
         return true;
       }
@@ -825,71 +825,71 @@ const matchMatrimonialProfile = async (req, res) => {
     };
 
     const parseHeightToInches = (heightStr) => {
-  if (!heightStr || typeof heightStr !== 'string') return null;
+      if (!heightStr || typeof heightStr !== 'string') return null;
 
-  const cleaned = heightStr.replace(/[‘’]/g, "'").trim(); // Normalize quotes
-  const match = cleaned.match(/(\d+)'[\s]*([\d]*)/); // Extract feet and inches
+      const cleaned = heightStr.replace(/[‘’]/g, "'").trim(); // Normalize quotes
+      const match = cleaned.match(/(\d+)'[\s]*([\d]*)/); // Extract feet and inches
 
-  if (!match) return null;
+      if (!match) return null;
 
-  const feet = parseInt(match[1], 10);
-  const inches = match[2] ? parseInt(match[2], 10) : 0;
+      const feet = parseInt(match[1], 10);
+      const inches = match[2] ? parseInt(match[2], 10) : 0;
 
-  return feet * 12 + inches;
-};
+      return feet * 12 + inches;
+    };
 
-const compareHeightStrict = (valueStr, minStr, maxStr) => {
-  const value = parseHeightToInches(valueStr);
-  const min = parseHeightToInches(minStr);
-  const max = parseHeightToInches(maxStr);
+    const compareHeightStrict = (valueStr, minStr, maxStr) => {
+      const value = parseHeightToInches(valueStr);
+      const min = parseHeightToInches(minStr);
+      const max = parseHeightToInches(maxStr);
 
-  if (minStr === "Doesn't Matter" || maxStr === "Doesn't Matter") return true;
+      if (minStr === "Doesn't Matter" || maxStr === "Doesn't Matter") return true;
 
-  if (value === null || min === null || max === null) return false;
+      if (value === null || min === null || max === null) return false;
 
-  return value >= min && value <= max;
-};
+      return value >= min && value <= max;
+    };
 
-const parseCustomIncomeRange = (incomeStr) => {
-  if (!incomeStr || typeof incomeStr !== "string") return null;
+    const parseCustomIncomeRange = (incomeStr) => {
+      if (!incomeStr || typeof incomeStr !== "string") return null;
 
-  const normalized = incomeStr.toLowerCase().trim();
+      const normalized = incomeStr.toLowerCase().trim();
 
-  if (normalized.includes("no income")) {
-    return { min: 0, max: 0 };
-  }
+      if (normalized.includes("no income")) {
+        return { min: 0, max: 0 };
+      }
 
-  if (normalized.includes("less than 1 lakh")) {
-    return { min: 1, max: 99999 };
-  }
+      if (normalized.includes("less than 1 lakh")) {
+        return { min: 1, max: 99999 };
+      }
 
-  if (normalized.includes("above 20 lakh")) {
-    return { min: 2000001, max: Infinity };
-  }
+      if (normalized.includes("above 20 lakh")) {
+        return { min: 2000001, max: Infinity };
+      }
 
-  const match = normalized.match(/(\d+)\s*lakh\s*-\s*(\d+)\s*lakh/);
-  if (match) {
-    const min = parseInt(match[1], 10) * 100000;
-    const max = parseInt(match[2], 10) * 100000;
-    return { min, max };
-  }
+      const match = normalized.match(/(\d+)\s*lakh\s*-\s*(\d+)\s*lakh/);
+      if (match) {
+        const min = parseInt(match[1], 10) * 100000;
+        const max = parseInt(match[2], 10) * 100000;
+        return { min, max };
+      }
 
-  return null;
-};
+      return null;
+    };
 
-const compareIncomeRange = (preferredStr, actualStr) => {
-  if (!preferredStr || preferredStr.toLowerCase() === "no income") {
-    return true;
-  }
+    const compareIncomeRange = (preferredStr, actualStr) => {
+      if (!preferredStr || preferredStr.toLowerCase() === "no income") {
+        return true;
+      }
 
-  const preferred = parseCustomIncomeRange(preferredStr);
-  const actual = parseCustomIncomeRange(actualStr);
+      const preferred = parseCustomIncomeRange(preferredStr);
+      const actual = parseCustomIncomeRange(actualStr);
 
-  if (!preferred || !actual) return false;
+      if (!preferred || !actual) return false;
 
-  // ✅ Accept if target income is equal to or above preferred income
-  return actual.min >= preferred.min;
-};
+      // ✅ Accept if target income is equal to or above preferred income
+      return actual.min >= preferred.min;
+    };
 
 
     const age =
@@ -924,10 +924,10 @@ const compareIncomeRange = (preferredStr, actualStr) => {
         preferences.partnerOccupation,
         userBiodata.personalDetails.occupation
       ),
-income: compareIncomeRange(
-  preferences.partnerIncome,
-  userBiodata.personalDetails.annualIncome
-),
+      income: compareIncomeRange(
+        preferences.partnerIncome,
+        userBiodata.personalDetails.annualIncome
+      ),
 
       familyType: compareField(
         preferences.partnerFamilyType,
@@ -938,11 +938,11 @@ income: compareIncomeRange(
         preferences.partnerMinAge,
         preferences.partnerMaxAge
       ),
-height: compareHeightStrict(
-  userBiodata.personalDetails.heightFeet,
-  preferences.partnerMinHeightFeet,
-  preferences.partnerMaxHeightFeet
-),
+      height: compareHeightStrict(
+        userBiodata.personalDetails.heightFeet,
+        preferences.partnerMinHeightFeet,
+        preferences.partnerMaxHeightFeet
+      ),
 
       location: compareLocation(
         preferences.partnerCity,
@@ -1863,14 +1863,14 @@ const getMetrimonialSummary = async (req, res) => {
     });
     if (!loggedInUserBiodata) throw new Error("Biodata not found for the user");
 
-// If biodata is inactive (disabled by Brahmin Milan Team)
-if (loggedInUserBiodata.activityStatus === "Inactive") {
-  return res.status(400).json({
-    status: false,
-    message:
-      "Your biodata has been deactivated by the Brahmin Milan Team. Please contact the support team for assistance or reactivation.",
-  });
-}
+    // If biodata is inactive (disabled by Brahmin Milan Team)
+    if (loggedInUserBiodata.activityStatus === "Inactive") {
+      return res.status(400).json({
+        status: false,
+        message:
+          "Your biodata has been deactivated by the Brahmin Milan Team. Please contact the support team for assistance or reactivation.",
+      });
+    }
 
 
     // ✅ Get all users with active Biodata subscription
@@ -1922,7 +1922,7 @@ if (loggedInUserBiodata.activityStatus === "Inactive") {
         const profileUserId = profileObj.userId?.toString();
         const status = connectionMap[profileUserId] || null;
 
-       const matchingConnection = connectionRequest.find(
+        const matchingConnection = connectionRequest.find(
           (cr) =>
             (cr.fromUserId.toString() === loggedInUser._id.toString() &&
               cr.toUserId.toString() === profileUserId) ||
@@ -1935,12 +1935,12 @@ if (loggedInUserBiodata.activityStatus === "Inactive") {
           isSaved: true,
           status,
           isVisible: status === "accepted",
-           requestId: matchingConnection?._id || null,
+          requestId: matchingConnection?._id || null,
           connectionStatus: matchingConnection
-    ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
-      ? "sent"
-      : "received"
-    : "none",
+            ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
+              ? "sent"
+              : "received"
+            : "none",
         };
       });
 
@@ -2107,7 +2107,7 @@ if (loggedInUserBiodata.activityStatus === "Inactive") {
       $and: matchConditions,
       activityStatus: { $ne: "Inactive" },
     }).sort({
-       latestActivityAt: -1 
+      latestActivityAt: -1
     });
 
     const sortedProfilesWithFlag = profiles
@@ -2133,11 +2133,11 @@ if (loggedInUserBiodata.activityStatus === "Inactive") {
           status,
           isVisible: status === "accepted",
           requestId: matchingConnection?._id || null,
-                    connectionStatus: matchingConnection
-    ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
-      ? "sent"
-      : "received"
-    : "none",
+          connectionStatus: matchingConnection
+            ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
+              ? "sent"
+              : "received"
+            : "none",
         };
       });
 
@@ -2146,49 +2146,49 @@ if (loggedInUserBiodata.activityStatus === "Inactive") {
       status: { $in: ["interested", "ignore", "accepted", "rejected"] },
     });
 
-const fromUserDetails = (
-  await Promise.all(
-    receivedConnectionRequests.map(async (data) => {
-      const fromUserBioData = await Biodata.findOne({
-        $and: [
-          { userId: data?.fromUserId },
-          { activityStatus: { $ne: "Inactive" } },
-        ],
-      });
-      const status = data?.status;
-      if (
-        !fromUserBioData ||
-        !activeSubscribedUserIds.has(data?.fromUserId?.toString())
+    const fromUserDetails = (
+      await Promise.all(
+        receivedConnectionRequests.map(async (data) => {
+          const fromUserBioData = await Biodata.findOne({
+            $and: [
+              { userId: data?.fromUserId },
+              { activityStatus: { $ne: "Inactive" } },
+            ],
+          });
+          const status = data?.status;
+          if (
+            !fromUserBioData ||
+            !activeSubscribedUserIds.has(data?.fromUserId?.toString())
+          )
+            return null;
+
+          const profileUserId = fromUserBioData?.userId?.toString();
+
+          const matchingConnection = connectionRequest.find(
+            (cr) =>
+              (cr.fromUserId.toString() === loggedInUser._id.toString() &&
+                cr.toUserId.toString() === profileUserId) ||
+              (cr.toUserId.toString() === loggedInUser._id.toString() &&
+                cr.fromUserId.toString() === profileUserId)
+          );
+
+          return {
+            ...fromUserBioData?.toObject(),
+            isSaved: Boolean(
+              savedProfilesMap[fromUserBioData?._id?.toString()]
+            ),
+            status,
+            isVisible: status === "accepted",
+            requestId: data?._id,
+            connectionStatus: matchingConnection
+              ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
+                ? "sent"
+                : "received"
+              : "none",
+          };
+        })
       )
-        return null;
-
-      const profileUserId = fromUserBioData?.userId?.toString();
-
-      const matchingConnection = connectionRequest.find(
-        (cr) =>
-          (cr.fromUserId.toString() === loggedInUser._id.toString() &&
-            cr.toUserId.toString() === profileUserId) ||
-          (cr.toUserId.toString() === loggedInUser._id.toString() &&
-            cr.fromUserId.toString() === profileUserId)
-      );
-
-      return {
-        ...fromUserBioData?.toObject(),
-        isSaved: Boolean(
-          savedProfilesMap[fromUserBioData?._id?.toString()]
-        ),
-        status,
-        isVisible: status === "accepted",
-        requestId: data?._id,
-        connectionStatus: matchingConnection
-          ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
-            ? "sent"
-            : "received"
-          : "none",
-      };
-    })
-  )
-).filter(Boolean);
+    ).filter(Boolean);
 
 
     const allProfiles = await Biodata.find({
@@ -2226,10 +2226,10 @@ const fromUserDetails = (
           isVisible: status === "accepted",
           requestId: matchingConnection?._id || null,
           connectionStatus: matchingConnection
-    ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
-      ? "sent"
-      : "received"
-    : "none",
+            ? matchingConnection.fromUserId.toString() === loggedInUser._id.toString()
+              ? "sent"
+              : "received"
+            : "none",
         };
       });
 

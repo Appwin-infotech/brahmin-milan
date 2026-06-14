@@ -353,20 +353,114 @@ const updatePartnerPreferences = async (req, res) => {
 const getBiodata = async (req, res) => {
   try {
     const userId = req.user._id;
-    const biodata = await Biodata.findOne({ userId });
+    const biodata = await Biodata.findOne({ userId }).lean();
+
     if (!biodata) {
       return res.status(400).json({
         status: false,
         message: "No biodata found for this user.",
       });
     }
+
+    // Build complete personalDetails with all fields (show null for missing optional fields)
+    const personalDetails = {
+      fullname: biodata.personalDetails?.fullname || null,
+      subCaste: biodata.personalDetails?.subCaste || null,
+      dob: biodata.personalDetails?.dob || null,
+      placeofbirth: biodata.personalDetails?.placeofbirth || null,
+      maritalStatus: biodata.personalDetails?.maritalStatus || null,
+      disabilities: biodata.personalDetails?.disabilities || null,
+      heightFeet: biodata.personalDetails?.heightFeet || null,
+      weight: biodata.personalDetails?.weight || null,
+      timeOfBirth: biodata.personalDetails?.timeOfBirth || null,
+      complexion: biodata.personalDetails?.complexion || null,
+      manglikStatus: biodata.personalDetails?.manglikStatus || null,
+      qualification: biodata.personalDetails?.qualification || null,
+      occupation: biodata.personalDetails?.occupation || null,
+      annualIncome: biodata.personalDetails?.annualIncome || null,
+      currentCity: biodata.personalDetails?.currentCity || null,
+      aboutMe: biodata.personalDetails?.aboutMe || null,
+      profileCreatedBy: biodata.personalDetails?.profileCreatedBy || null,
+      fatherName: biodata.personalDetails?.fatherName || null,
+      motherName: biodata.personalDetails?.motherName || null,
+      fatherOccupation: biodata.personalDetails?.fatherOccupation || null,
+      fatherIncomeAnnually: biodata.personalDetails?.fatherIncomeAnnually || null,
+      motherOccupation: biodata.personalDetails?.motherOccupation || null,
+      familyType: biodata.personalDetails?.familyType || null,
+      siblings: biodata.personalDetails?.siblings || null,
+      otherFamilyMemberInfo: biodata.personalDetails?.otherFamilyMemberInfo || null,
+      contactNumber1: biodata.personalDetails?.contactNumber1 || null,
+      contactNumber2: biodata.personalDetails?.contactNumber2 || null,
+      state: biodata.personalDetails?.state || null,
+      cityOrVillage: biodata.personalDetails?.cityOrVillage || null,
+      knowCooking: biodata.personalDetails?.knowCooking || null,
+      dietaryHabit: biodata.personalDetails?.dietaryHabit || null,
+      smokingHabit: biodata.personalDetails?.smokingHabit || null,
+      tobaccoHabits: biodata.personalDetails?.tobaccoHabits || null,
+      drinkingHabit: biodata.personalDetails?.drinkingHabit || null,
+      hobbies: biodata.personalDetails?.hobbies || null,
+      gotraSelf: biodata.personalDetails?.gotraSelf || null,
+      livingStatus: biodata.personalDetails?.livingStatus || null,
+      partnerExpectations: biodata.personalDetails?.partnerExpectations || null,
+      closeUpPhoto: biodata.personalDetails?.closeUpPhoto || [],  // ✅ was missing
+    };
+
+    // Build complete partnerPreferences (null if not filled yet)
+    const partnerPreferences = biodata.partnerPreferences
+      ? {
+        partnerSubCaste: biodata.partnerPreferences?.partnerSubCaste || null,
+        partnerMinAge: biodata.partnerPreferences?.partnerMinAge || null,
+        partnerMaxAge: biodata.partnerPreferences?.partnerMaxAge || null,
+        partnerMinHeightFeet: biodata.partnerPreferences?.partnerMinHeightFeet || null,
+        partnerMaxHeightFeet: biodata.partnerPreferences?.partnerMaxHeightFeet || null,
+        partnerMaritalStatus: biodata.partnerPreferences?.partnerMaritalStatus || null,
+        partnerIncome: biodata.partnerPreferences?.partnerIncome || null,
+        partnerOccupation: biodata.partnerPreferences?.partnerOccupation || null,
+        partnerQualification: biodata.partnerPreferences?.partnerQualification || null,
+        partnerDisabilities: biodata.partnerPreferences?.partnerDisabilities || null,
+        partnerManglikStatus: biodata.partnerPreferences?.partnerManglikStatus || null,
+        partnersLivingStatus: biodata.partnerPreferences?.partnersLivingStatus || null,
+        partnerState: biodata.partnerPreferences?.partnerState || null,
+        partnerCity: biodata.partnerPreferences?.partnerCity || null,
+        partnerBodyStructure: biodata.partnerPreferences?.partnerBodyStructure || null,
+        partnerComplexion: biodata.partnerPreferences?.partnerComplexion || null,
+        partnerDietaryHabits: biodata.partnerPreferences?.partnerDietaryHabits || null,
+        partnerSmokingHabits: biodata.partnerPreferences?.partnerSmokingHabits || null,
+        partnerDrinkingHabits: biodata.partnerPreferences?.partnerDrinkingHabits || null,
+        partnerExpectations: biodata.partnerPreferences?.partnerExpectations || null,
+        partnerFamilyType: biodata.partnerPreferences?.partnerFamilyType || null,
+        partnerFamilyFinancialStatus: biodata.partnerPreferences?.partnerFamilyFinancialStatus || null,
+        partnerFamilyIncome: biodata.partnerPreferences?.partnerFamilyIncome || null,
+      }
+      : null;
+
     return res.status(200).json({
       status: true,
-      data: biodata,
+      data: {
+        _id: biodata._id,
+        userId: biodata.userId,
+        bioDataId: biodata.bioDataId,
+        gender: biodata.gender,
+        personalDetails,          // ✅ all fields including closeUpPhoto
+        partnerPreferences,       // ✅ now included (null if not added yet)
+        verified: biodata.verified,
+        verifiedBy: biodata.verifiedBy || null,
+        profileType: biodata.profileType,
+        hideContact: biodata.hideContact,
+        isBlur: biodata.isBlur,
+        hideOptionalDetails: biodata.hideOptionalDetails,
+        activityStatus: biodata.activityStatus,
+        activeStartDate: biodata.activeStartDate,
+        activeEndDate: biodata.activeEndDate,
+        repostStatus: biodata.repostStatus,
+        lastRepostedAt: biodata.lastRepostedAt,
+        latestActivityAt: biodata.latestActivityAt,
+        createdAt: biodata.createdAt,
+        updatedAt: biodata.updatedAt,
+      },
     });
   } catch (error) {
     res.status(500).json({
-
       status: false,
       message: "Error fetching biodata.",
       error: error.message,
@@ -376,8 +470,8 @@ const getBiodata = async (req, res) => {
 // Get biodataByUserId for basic user
 const getBiodataByUserId = async (req, res) => {
   try {
-    const { id } = req.params; // Target userId
-    const loggedInUserId = req.user._id; // From auth middleware
+    const { id } = req.params;
+    const loggedInUserId = req.user._id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -394,7 +488,7 @@ const getBiodataByUserId = async (req, res) => {
       });
     }
 
-    const biodata = await Biodata.findOne({ userId: id }).select("-partnerPreferences");
+    const biodata = await Biodata.findOne({ userId: id }).lean();
     if (!biodata) {
       return res.status(404).json({
         status: false,
@@ -402,7 +496,6 @@ const getBiodataByUserId = async (req, res) => {
       });
     }
 
-    // ✅ Check if the logged-in user has saved this user's biodata
     const saved = await SavedProfile.findOne({
       userId: loggedInUserId,
       saveProfile: biodata._id,
@@ -410,12 +503,77 @@ const getBiodataByUserId = async (req, res) => {
 
     const isSaved = !!saved;
 
+    // Build personalDetails with all fields explicitly
+    const personalDetails = {
+      fullname: biodata.personalDetails?.fullname || null,
+      subCaste: biodata.personalDetails?.subCaste || null,
+      dob: biodata.personalDetails?.dob || null,
+      placeofbirth: biodata.personalDetails?.placeofbirth || null,
+      maritalStatus: biodata.personalDetails?.maritalStatus || null,
+      disabilities: biodata.personalDetails?.disabilities || null,
+      heightFeet: biodata.personalDetails?.heightFeet || null,
+      weight: biodata.personalDetails?.weight || null,
+      timeOfBirth: biodata.personalDetails?.timeOfBirth || null,
+      complexion: biodata.personalDetails?.complexion || null,
+      manglikStatus: biodata.personalDetails?.manglikStatus || null,
+      qualification: biodata.personalDetails?.qualification || null,
+      occupation: biodata.personalDetails?.occupation || null,
+      annualIncome: biodata.personalDetails?.annualIncome || null,
+      currentCity: biodata.personalDetails?.currentCity || null,
+      aboutMe: biodata.personalDetails?.aboutMe || null,
+      profileCreatedBy: biodata.personalDetails?.profileCreatedBy || null,
+      fatherName: biodata.personalDetails?.fatherName || null,
+      motherName: biodata.personalDetails?.motherName || null,
+      fatherOccupation: biodata.personalDetails?.fatherOccupation || null,
+      fatherIncomeAnnually: biodata.personalDetails?.fatherIncomeAnnually || null,
+      motherOccupation: biodata.personalDetails?.motherOccupation || null,
+      familyType: biodata.personalDetails?.familyType || null,
+      siblings: biodata.personalDetails?.siblings || null,
+      otherFamilyMemberInfo: biodata.personalDetails?.otherFamilyMemberInfo || null,
+      contactNumber1: biodata.hideContact ? null : (biodata.personalDetails?.contactNumber1 || null),   // ✅ respect hideContact
+      contactNumber2: biodata.hideContact ? null : (biodata.personalDetails?.contactNumber2 || null),   // ✅ respect hideContact
+      state: biodata.personalDetails?.state || null,
+      cityOrVillage: biodata.personalDetails?.cityOrVillage || null,
+      knowCooking: biodata.personalDetails?.knowCooking || null,
+      dietaryHabit: biodata.personalDetails?.dietaryHabit || null,
+      smokingHabit: biodata.personalDetails?.smokingHabit || null,
+      tobaccoHabits: biodata.personalDetails?.tobaccoHabits || null,
+      drinkingHabit: biodata.personalDetails?.drinkingHabit || null,
+      hobbies: biodata.personalDetails?.hobbies || null,
+      gotraSelf: biodata.personalDetails?.gotraSelf || null,
+      livingStatus: biodata.personalDetails?.livingStatus || null,
+      partnerExpectations: biodata.personalDetails?.partnerExpectations || null,
+      closeUpPhoto: biodata.isBlur
+        ? (biodata.personalDetails?.closeUpPhoto || []).map(() => null)  // ✅ respect isBlur — return nulls instead of photo paths
+        : (biodata.personalDetails?.closeUpPhoto || []),
+    };
+
     return res.status(200).json({
       status: true,
       message: "User biodata fetched successfully.",
       data: {
-        biodata,
         isSaved,
+        biodata: {
+          _id: biodata._id,
+          userId: biodata.userId,
+          bioDataId: biodata.bioDataId,
+          gender: biodata.gender,
+          personalDetails,          
+          verified: biodata.verified,
+          verifiedBy: biodata.verifiedBy || null,
+          profileType: biodata.profileType,
+          hideContact: biodata.hideContact,
+          isBlur: biodata.isBlur,
+          hideOptionalDetails: biodata.hideOptionalDetails,
+          activityStatus: biodata.activityStatus,
+          activeStartDate: biodata.activeStartDate,
+          activeEndDate: biodata.activeEndDate,
+          repostStatus: biodata.repostStatus,
+          lastRepostedAt: biodata.lastRepostedAt,
+          latestActivityAt: biodata.latestActivityAt,
+          createdAt: biodata.createdAt,
+          updatedAt: biodata.updatedAt,
+        },
       },
     });
   } catch (error) {

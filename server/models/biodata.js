@@ -37,9 +37,9 @@ const personalDetailsSchema = new mongoose.Schema({
   tobaccoHabits: { type: String, required: false },
   drinkingHabit: { type: String, required: false },
   hobbies: { type: String, required: false },
-  // closeUpPhoto: { type: String, required: true },
-  // fullPhoto: { type: String, required: false },
-  // bestPhoto: { type: String, required: false },
+  gotraSelf: { type: String, required: false },
+  livingStatus: { type: String, required: true },
+  partnerExpectations: { type: String, required: false },
   closeUpPhoto: { 
     type: [String], 
     required: true,
