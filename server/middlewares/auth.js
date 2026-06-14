@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
+const Admin = require('../models/admin');
 
 const verifyToken = async (req, res, next) => {
   try {
-    // Get token from Authorization header
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -14,15 +14,23 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    // Extract token
     const token = authHeader.split(" ")[1];
 
     try {
-      // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Find user
-      const user = await User.findById(decoded.userId);
+      // ✅ First check User collection
+      let user = await User.findById(decoded.userId);
+      let role = "user";
+
+      // ✅ If not found, check Admin collection
+      if (!user) {
+        const admin = await Admin.findById(decoded.userId || decoded.id).select("-password");
+        if (admin) {
+          user = admin;
+          role = "admin";
+        }
+      }
 
       if (!user) {
         return res.status(400).json({
@@ -32,8 +40,8 @@ const verifyToken = async (req, res, next) => {
         });
       }
 
-      // Check if access is disabled
-      if (user.access && user.access.toLowerCase() === "disable") {
+      // ✅ Only check access disabled for regular users, not admins
+      if (role === "user" && user.access && user.access.toLowerCase() === "disable") {
         return res.status(400).json({
           status: false,
           message: "Your account has been disabled by the Brahmin Milan Team. Please contact support.",
@@ -41,8 +49,8 @@ const verifyToken = async (req, res, next) => {
         });
       }
 
-      // Attach user to request
-      req.user = user;
+      // ✅ Attach user + role to request
+      req.user = { ...user.toObject(), role };
       next();
 
     } catch (err) {
@@ -53,7 +61,6 @@ const verifyToken = async (req, res, next) => {
           error: "Token expired",
         });
       }
-
       return res.status(400).json({
         status: false,
         message: "Invalid token. Please login again.",
@@ -68,6 +75,5 @@ const verifyToken = async (req, res, next) => {
     });
   }
 };
-
 
 module.exports = verifyToken;

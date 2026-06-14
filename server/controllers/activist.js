@@ -185,67 +185,148 @@ if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
   }
 };
 
-//verify metrimonial Profile
+// //verify metrimonial Profile
+// const verifyMetrimonialProfile = async (req, res) => {
+//   try {
+//     const { _id: userId } = req.user;
+//     const { bioDataId } = req.params;
+
+//     // Check if the user is a valid activist
+//     const validActivist = await Activist.findOne({ userId: userId });
+
+//     const activistId = validActivist?._id;
+
+//     if (!validActivist) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid Action! Please first create Activist Profile!",
+//       });
+//     }
+
+//     // Check if the matrimonial profile exists
+//     const matrimonialProfile = await Biodata.findOne({ bioDataId });
+
+//     if (!matrimonialProfile) {
+//       return res
+//         .status(400)
+//         .json({ status: false, message: "Matrimonial Profile Not Found!" });
+//     }
+
+//     // Check if the current activist is the one who verified the profile
+//     if (
+//       matrimonialProfile.verified === true &&
+//       matrimonialProfile.verifiedBy.toString() !== activistId.toString()
+//     ) {
+//       return res.status(400).json({
+//         status: false,
+//         message:
+//           "Only the activist who verified the profile can disapprove it!",
+//       });
+//     }
+
+//     // Update the profile field
+//     if (matrimonialProfile.verified === false) {
+//       matrimonialProfile.verified = true;
+//       matrimonialProfile.verifiedBy = validActivist._id; // Save the activist who verified the profile
+//       // Save the updated profile
+//       await matrimonialProfile.save();
+//       return res.status(200).json({
+//         status: true,
+//         message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
+//           } by ${validActivist.fullname}!`,
+//       });
+//     }
+
+//     if (matrimonialProfile.verified === true) {
+//       matrimonialProfile.verified = false;
+//       matrimonialProfile.verifiedBy = null; // Remove the activist reference if disapproved
+//       // Save the updated profile
+//       await matrimonialProfile.save();
+//       return res.status(200).json({
+//         status: true,
+//         message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
+//           } by ${validActivist.fullname}!`,
+//       });
+//     }
+//   } catch (err) {
+//     res.status(500).json({ status: false, message: err.message });
+//   }
+// };
+
 const verifyMetrimonialProfile = async (req, res) => {
   try {
-    const { _id: userId } = req.user;
+    const { _id: userId, role } = req.user; // ✅ extract role from token (e.g. "admin" or "user")
     const { bioDataId } = req.params;
 
-    // Check if the user is a valid activist
-    const validActivist = await Activist.findOne({ userId: userId });
+    // ✅ Check if caller is admin or activist
+    const isAdmin = role === "admin"; // adjust "admin" to match your actual role value in JWT
 
-    const activistId = validActivist?._id;
+    let activistId = null;
+    let verifierName = "Admin";
 
-    if (!validActivist) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid Action! Please first create Activist Profile!",
-      });
+    if (!isAdmin) {
+      // ✅ Not admin — must be a valid activist
+      const validActivist = await Activist.findOne({ userId });
+
+      if (!validActivist) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid Action! Please first create Activist Profile!",
+        });
+      }
+
+      activistId = validActivist._id;
+      verifierName = validActivist.fullname;
     }
 
     // Check if the matrimonial profile exists
     const matrimonialProfile = await Biodata.findOne({ bioDataId });
 
     if (!matrimonialProfile) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Matrimonial Profile Not Found!" });
-    }
-
-    // Check if the current activist is the one who verified the profile
-    if (
-      matrimonialProfile.verified === true &&
-      matrimonialProfile.verifiedBy.toString() !== activistId.toString()
-    ) {
       return res.status(400).json({
         status: false,
-        message:
-          "Only the activist who verified the profile can disapprove it!",
+        message: "Matrimonial Profile Not Found!",
       });
     }
 
-    // Update the profile field
+    // ✅ If already verified by an activist, only that activist OR admin can unverify
+    if (
+      matrimonialProfile.verified === true &&
+      matrimonialProfile.verifiedBy &&
+      !isAdmin
+    ) {
+      const verifiedById = matrimonialProfile.verifiedBy.toString();
+      const callerActivistId = activistId?.toString();
+
+      if (verifiedById !== callerActivistId) {
+        return res.status(400).json({
+          status: false,
+          message: "Only the activist who verified the profile can disapprove it!",
+        });
+      }
+    }
+
+    // ✅ Toggle verify status
     if (matrimonialProfile.verified === false) {
       matrimonialProfile.verified = true;
-      matrimonialProfile.verifiedBy = validActivist._id; // Save the activist who verified the profile
-      // Save the updated profile
+      // Admin verifiedBy stays null (admins don't have activist profiles)
+      matrimonialProfile.verifiedBy = isAdmin ? null : activistId;
       await matrimonialProfile.save();
+
       return res.status(200).json({
         status: true,
-        message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
-          } by ${validActivist.fullname}!`,
+        message: `Matrimonial Profile verified by ${verifierName}!`,
       });
     }
 
     if (matrimonialProfile.verified === true) {
       matrimonialProfile.verified = false;
-      matrimonialProfile.verifiedBy = null; // Remove the activist reference if disapproved
-      // Save the updated profile
+      matrimonialProfile.verifiedBy = null;
       await matrimonialProfile.save();
+
       return res.status(200).json({
         status: true,
-        message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
-          } by ${validActivist.fullname}!`,
+        message: `Matrimonial Profile disapproved by ${verifierName}!`,
       });
     }
   } catch (err) {

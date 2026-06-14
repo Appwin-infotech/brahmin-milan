@@ -38,7 +38,7 @@ const personalDetailsSchema = new mongoose.Schema({
   drinkingHabit: { type: String, required: false },
   hobbies: { type: String, required: false },
   gotraSelf: { type: String, required: false },
-  livingStatus: { type: String, required: true },
+  livingStatus: { type: String, required: false },
   partnerExpectations: { type: String, required: false },
   closeUpPhoto: { 
     type: [String], 

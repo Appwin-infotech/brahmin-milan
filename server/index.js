@@ -3,10 +3,10 @@ const database = require("./config/database");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const dotenv = require("dotenv");
-require('./config/subscriptionChecker'); 
+require('./config/subscriptionChecker');
 const { cloudinaryConnect } = require("./config/cloudinary");
 const fileUpload = require("express-fileupload");
-const userRoute=require('./routes/user')
+const userRoute = require('./routes/user')
 const panditRoute = require("./routes/pandit")
 const kathavachakRoute = require("./routes/kathavachak")
 const jyotishRoute = require("./routes/jyotish")
@@ -26,9 +26,9 @@ const contactRoutes = require("./routes/contactRoutes");
 const notificationRouter = require("./routes/notification");
 const PORT = process.env.PORT || 5000;
 const bodyParser = require("body-parser");
-const {createServer} = require("http");
-const {initializeSocket} = require("./socket/socket.server")
-const multer = require('multer'); 
+const { createServer } = require("http");
+const { initializeSocket } = require("./socket/socket.server")
+const multer = require('multer');
 
 const app = express();
 const httpServer = createServer(app);
@@ -43,26 +43,26 @@ app.use(cookieParser());
 
 // Define allowed origins in an array
 const allowedOrigins = [
-   process.env.CLIENT_URI, // Live development environment
-   process.env.DELETION_URI, // Production environment
-   process.env.APPWIN_URI,
-   process.env.APPWIN_WWW_URI,
-   process.env.CLIENT_LOCAL_URI, // Local development environment
+  process.env.CLIENT_URI, // Live development environment
+  process.env.DELETION_URI, // Production environment
+  process.env.APPWIN_URI,
+  process.env.APPWIN_WWW_URI,
+  process.env.CLIENT_LOCAL_URI, // Local development environment
 ];
 
 app.use(
   cors({
-      origin: (origin, callback) => {
-        // Check if the incoming origin is in the allowedOrigins list
-        if (allowedOrigins.includes(origin) || !origin) {
-          callback(null, true); // Allow the request
-        } else {
-          callback(new Error('Not allowed by CORS')); // Reject the request
-        }
-      },
+    origin: (origin, callback) => {
+      // Check if the incoming origin is in the allowedOrigins list
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true); // Allow the request
+      } else {
+        callback(new Error('Not allowed by CORS')); // Reject the request
+      }
+    },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'], // Allowed HTTP methods
-    allowedHeaders: ['Content-Type', 'Authorization','authToken'] // Allowed headers
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Allowed HTTP methods
+    allowedHeaders: ['Content-Type', 'Authorization', 'authToken'] // Allowed headers
   })
 );
 
@@ -83,20 +83,20 @@ const path = require('path');
 
 // Serve static files from the "uploads" directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/api/v1/user',userRoute);
-app.use('/api/v1/biodata',biodataRouter);
-app.use('/api/v1/pandit',panditRoute);
-app.use('/api/v1/jyotish',jyotishRoute);
-app.use('/api/v1/kathavachak',kathavachakRoute);
-app.use('/api/v1/connectionRequest',requestRouter);
-app.use('/api/v1/activist',activistRouter);
-app.use('/api/v1/committee',committeeRouter);
-app.use('/api/v1/dharmshala',dharmshalaRouter);
-app.use('/api/v1/event',eventPostRouter);
-app.use('/api/v1/admin',adminRouter);
-app.use('/api/v1/saved',savedRouter);
-app.use('/api/v1/report',reportRouter);
-app.use('/api/v1/settings',settingsRouter);
+app.use('/api/v1/user', userRoute);
+app.use('/api/v1/biodata', biodataRouter);
+app.use('/api/v1/pandit', panditRoute);
+app.use('/api/v1/jyotish', jyotishRoute);
+app.use('/api/v1/kathavachak', kathavachakRoute);
+app.use('/api/v1/connectionRequest', requestRouter);
+app.use('/api/v1/activist', activistRouter);
+app.use('/api/v1/committee', committeeRouter);
+app.use('/api/v1/dharmshala', dharmshalaRouter);
+app.use('/api/v1/event', eventPostRouter);
+app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/saved', savedRouter);
+app.use('/api/v1/report', reportRouter);
+app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/subscription', subscriptionRouter);
 app.use('/api/v1/notification', notificationRouter);
 app.use("/api/v1/deeplink", deeplinkRoutes);

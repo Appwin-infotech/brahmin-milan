@@ -32,9 +32,6 @@ const subscriptionData = [
 ];
 
 // ─── Date Range Modal ─────────────────────────────────────────────────────────
-// Opens only when activating an Inactive profile.
-// Does NOT change any existing UI — it's a new overlay only.
-
 const DateRangeModal = ({ onConfirm, onCancel }) => {
   const today = new Date().toISOString().split("T")[0];
   const [start, setStart] = useState(today);
@@ -66,7 +63,6 @@ const DateRangeModal = ({ onConfirm, onCancel }) => {
         <p className="text-sm text-slate-500 mb-4">
           Select the activation date range for this profile.
         </p>
-
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">
@@ -98,10 +94,8 @@ const DateRangeModal = ({ onConfirm, onCancel }) => {
               className="w-full p-2 border rounded-md bg-slate-100 text-slate-900"
             />
           </div>
-
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>
-
         <div className="flex justify-end gap-2 mt-5">
           <button
             onClick={onCancel}
@@ -122,7 +116,6 @@ const DateRangeModal = ({ onConfirm, onCancel }) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-
 const MatrimonialProfiles = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -131,13 +124,13 @@ const MatrimonialProfiles = () => {
   const [selectedGender, setSelectedGender] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedSubscription, setSelectedSubscription] = useState("");
+  const [selectedSubCaste, setSelectedSubCaste] = useState(""); // ✅ Point 14
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const profilesPerPage = 10;
   const navigate = useNavigate();
 
-  // ── Date range modal state ─────────────────────────────────────────────────
   const [pendingToggleIndex, setPendingToggleIndex] = useState(null);
   const [showDateModal, setShowDateModal] = useState(false);
 
@@ -149,6 +142,11 @@ const MatrimonialProfiles = () => {
   };
 
   const headers = getAuthHeaders();
+
+  // ✅ Point 14 — dynamically build subCaste list from loaded data
+  const subCasteList = [
+    ...new Set(users.map((u) => u.personalDetails?.subCaste).filter(Boolean)),
+  ].sort();
 
   const fetchUsers = async () => {
     try {
@@ -171,7 +169,7 @@ const MatrimonialProfiles = () => {
         }
       }
       if (data.status) {
-        setUsers(data.data); 
+        setUsers(data.data);
       }
     } catch (error) {
       console.error("Error fetching data", error);
@@ -181,21 +179,20 @@ const MatrimonialProfiles = () => {
   };
 
   useEffect(() => {
-    filterUsers(
-      searchQuery,
-      startDate,
-      endDate,
-      selectedGender,
-      selectedStatus,
-      selectedSubscription
-    );
-  }, [users]); 
-
-  useEffect(() => {
     fetchUsers();
   }, []);
 
-  const filterUsers = (query, start, end, gender, status, subscription) => {
+  // ✅ Point 14 — added subCaste param to filterUsers
+  const filterUsers = (
+    query,
+    start,
+    end,
+    gender,
+    status,
+    subscription,
+    subCaste, // ✅ new param
+    resetPage = true
+  ) => {
     let filtered = users.filter(
       (user) =>
         user.personalDetails.fullname
@@ -241,9 +238,39 @@ const MatrimonialProfiles = () => {
       );
     }
 
+    // ✅ Point 14 — Sub Caste filter
+    if (subCaste) {
+      filtered = filtered.filter(
+        (user) =>
+          user.personalDetails?.subCaste?.toLowerCase() ===
+          subCaste.toLowerCase()
+      );
+    }
+
     setFilteredUsers(filtered);
-    setCurrentPage(1);
+    if (resetPage) setCurrentPage(1);
   };
+
+  useEffect(() => {
+    filterUsers(
+      searchQuery,
+      startDate,
+      endDate,
+      selectedGender,
+      selectedStatus,
+      selectedSubscription,
+      selectedSubCaste,
+      false
+    );
+  }, [users]);
+
+  useEffect(() => {
+    const savedPage = localStorage.getItem("matrimonyCurrentPage");
+    if (savedPage && users.length > 0) {
+      setCurrentPage(Number(savedPage));
+      localStorage.removeItem("matrimonyCurrentPage");
+    }
+  }, [users]);
 
   useEffect(() => {
     const handleNewBioData = (e) => {
@@ -294,7 +321,8 @@ const MatrimonialProfiles = () => {
       endDate,
       selectedGender,
       selectedStatus,
-      selectedSubscription
+      selectedSubscription,
+      selectedSubCaste
     );
   };
 
@@ -307,7 +335,8 @@ const MatrimonialProfiles = () => {
       end,
       selectedGender,
       selectedStatus,
-      selectedSubscription
+      selectedSubscription,
+      selectedSubCaste
     );
   };
 
@@ -319,9 +348,11 @@ const MatrimonialProfiles = () => {
       endDate,
       e.target.value,
       selectedStatus,
-      selectedSubscription
+      selectedSubscription,
+      selectedSubCaste
     );
   };
+
   const handleStatusFilter = (e) => {
     setSelectedStatus(e.target.value);
     filterUsers(
@@ -330,9 +361,11 @@ const MatrimonialProfiles = () => {
       endDate,
       selectedGender,
       e.target.value,
-      selectedSubscription
+      selectedSubscription,
+      selectedSubCaste
     );
   };
+
   const handleSubscriptionFilter = (e) => {
     setSelectedSubscription(e.target.value);
     filterUsers(
@@ -341,6 +374,21 @@ const MatrimonialProfiles = () => {
       endDate,
       selectedGender,
       selectedStatus,
+      e.target.value,
+      selectedSubCaste
+    );
+  };
+
+  // ✅ Point 14 — Sub Caste filter handler
+  const handleSubCasteFilter = (e) => {
+    setSelectedSubCaste(e.target.value);
+    filterUsers(
+      searchQuery,
+      startDate,
+      endDate,
+      selectedGender,
+      selectedStatus,
+      selectedSubscription,
       e.target.value
     );
   };
@@ -352,34 +400,26 @@ const MatrimonialProfiles = () => {
     setSelectedGender("");
     setSelectedStatus("");
     setSelectedSubscription("");
+    setSelectedSubCaste(""); // ✅ Point 14 — reset sub caste too
     setFilteredUsers(users);
     setCurrentPage(1);
   };
-
-  // ── Toggle handler ─────────────────────────────────────────────────────────
-  // If profile is Active   → deactivate immediately (no modal needed)
-  // If profile is Inactive → open date modal first, then activate
 
   const handleToggle = (index) => {
     const indexOfFirstRecord = (currentPage - 1) * profilesPerPage;
     const globalIndex = indexOfFirstRecord + index;
     const user = filteredUsers[globalIndex];
-
     if (user.activityStatus === "Active") {
-      // Deactivate immediately — no date needed
       doToggle(globalIndex, null, null);
     } else {
-      // Inactive → open calendar modal
       setPendingToggleIndex(globalIndex);
       setShowDateModal(true);
     }
   };
 
-  // Called after modal confirms dates (or directly for deactivation)
   const doToggle = async (globalIndex, activateStart, activateEnd) => {
     const updatedUsers = [...filteredUsers];
     const user = updatedUsers[globalIndex];
-
     const newStatus = user.activityStatus === "Active" ? "Inactive" : "Active";
     user.activityStatus = newStatus;
     setFilteredUsers(updatedUsers);
@@ -390,18 +430,11 @@ const MatrimonialProfiles = () => {
         body.startDate = activateStart;
         body.endDate = activateEnd;
       }
-
       const response = await fetch(
         `${BASE_URL}/api/v1/admin/setMetrionial_ActivityStatus`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify(body),
-        }
+        { method: "PATCH", headers, body: JSON.stringify(body) }
       );
-
       const data = await response.json();
-
       if (!response.ok) {
         if (data.error === "Token expired") {
           alert("Session expired. Please login again.");
@@ -411,21 +444,16 @@ const MatrimonialProfiles = () => {
         }
         throw new Error(data.message || "Failed to update user.");
       }
-
       if (data.status) {
         toast.success(data.message || "Status updated successfully!");
-
-        // ✅ Re-fetch fresh data from API
         await fetchUsers();
       } else {
-        // Rollback optimistic update
         user.activityStatus =
           user.activityStatus === "Active" ? "Inactive" : "Active";
         setFilteredUsers([...updatedUsers]);
         toast.error(data.message || "Failed to update status!");
       }
     } catch (error) {
-      // Rollback
       user.activityStatus =
         user.activityStatus === "Active" ? "Inactive" : "Active";
       setFilteredUsers([...updatedUsers]);
@@ -433,20 +461,17 @@ const MatrimonialProfiles = () => {
     }
   };
 
-  // Modal confirm — user picked dates
   const handleModalConfirm = (start, end) => {
     setShowDateModal(false);
     doToggle(pendingToggleIndex, start, end);
     setPendingToggleIndex(null);
   };
 
-  // Modal cancel — do nothing, leave profile as Inactive
   const handleModalCancel = () => {
     setShowDateModal(false);
     setPendingToggleIndex(null);
   };
 
-  // Pagination
   const totalPages = Math.ceil(filteredUsers.length / profilesPerPage);
   const indexOfLastRecord = currentPage * profilesPerPage;
   const indexOfFirstRecord = indexOfLastRecord - profilesPerPage;
@@ -454,37 +479,23 @@ const MatrimonialProfiles = () => {
     indexOfFirstRecord,
     indexOfLastRecord
   );
-
   const handlePageChange = (page) => setCurrentPage(page);
 
-  const handleProfileClick = (profileId, page) => {
-    localStorage.setItem("metrimonyCurrentPage", page);
+  const handleProfileClick = (profileId) => {
+    localStorage.setItem("matrimonyCurrentPage", currentPage);
     navigate(`/profile/${profileId}`);
   };
 
-  useEffect(() => {
-    const savedPage = localStorage.getItem("metrimonyCurrentPage");
-    if (savedPage) {
-      setCurrentPage(Number(savedPage));
-      localStorage.removeItem("metrimonyCurrentPage");
-    }
-  }, []);
-
   if (loading)
     return (
-      <div>
-        <div className="flex justify-center items-center mt-60 py-10">
-          <FaSpinner className="animate-spin text-3xl text-white" />
-          <span className="text-white font-extrabold text-2xl pl-5">
-            Loading
-          </span>
-        </div>
+      <div className="flex justify-center items-center mt-60 py-10">
+        <FaSpinner className="animate-spin text-3xl text-white" />
+        <span className="text-white font-extrabold text-2xl pl-5">Loading</span>
       </div>
     );
 
   return (
     <div className="min-h-screen sm:p-2 md:p-8 pt-0">
-      {/* Date range modal — only shown when activating an Inactive profile */}
       {showDateModal && (
         <DateRangeModal
           onConfirm={handleModalConfirm}
@@ -523,10 +534,26 @@ const MatrimonialProfiles = () => {
           <input
             type="text"
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
-            placeholder="Search by Name.. Mobile.. userId.. city.."
+            placeholder="Search by Name, Mobile, ID, City, Sub Caste..."
             value={searchQuery}
             onChange={handleSearch}
           />
+
+          {/* ✅ Point 14 — Sub Caste dropdown filter */}
+          <select
+            className="p-2 border rounded-md bg-slate-100 text-slate-900 max-h-48 overflow-y-auto"
+            value={selectedSubCaste}
+            onChange={handleSubCasteFilter}
+            style={{ maxHeight: "42px" }}
+          >
+            <option value="">Filter by Sub Caste</option>
+            {subCasteList.map((caste) => (
+              <option key={caste} value={caste}>
+                {caste}
+              </option>
+            ))}
+          </select>
+
           <select
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
             value={selectedGender}
@@ -539,6 +566,7 @@ const MatrimonialProfiles = () => {
               </option>
             ))}
           </select>
+
           <select
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
             value={selectedStatus}
@@ -551,6 +579,7 @@ const MatrimonialProfiles = () => {
               </option>
             ))}
           </select>
+
           <select
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
             value={selectedSubscription}
@@ -563,6 +592,7 @@ const MatrimonialProfiles = () => {
               </option>
             ))}
           </select>
+
           <input
             type="date"
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
@@ -587,9 +617,32 @@ const MatrimonialProfiles = () => {
         <div className="mb-4 text-gray-700 font-medium">
           Showing {filteredUsers.length} result
           {filteredUsers.length !== 1 && "s"}
+          {/* ✅ Point 14 — show active sub caste filter badge */}
+          {selectedSubCaste && (
+            <span className="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+              Sub Caste: {selectedSubCaste}
+              <button
+                className="ml-1 text-indigo-500 hover:text-indigo-800 font-bold"
+                onClick={() => {
+                  setSelectedSubCaste("");
+                  filterUsers(
+                    searchQuery,
+                    startDate,
+                    endDate,
+                    selectedGender,
+                    selectedStatus,
+                    selectedSubscription,
+                    ""
+                  );
+                }}
+              >
+                ✕
+              </button>
+            </span>
+          )}
         </div>
 
-        {/* Table — completely unchanged */}
+        {/* Table — unchanged */}
         <div className="w-full overflow-x-auto custom-scroll">
           <table className="min-w-full table-auto text-nowrap bg-slate-50 rounded-lg shadow-md overflow-hidden">
             <thead className="bg-slate-900 text-slate-100">
@@ -611,19 +664,17 @@ const MatrimonialProfiles = () => {
             <tbody>
               {currentProfiles.length === 0 ? (
                 <tr>
-                  <td colSpan="13" className="px-4 py-2 text-center">
+                  <td colSpan="12" className="px-4 py-2 text-center">
                     No records available
                   </td>
                 </tr>
               ) : (
                 currentProfiles.map((user, index) => (
-                  <tr key={user.userId}>
+                  <tr key={user.bioDataId}>
                     <td className="py-3 px-4">{user.bioDataId}</td>
                     <td
                       className="py-3 px-4 text-blue-500 hover:underline cursor-pointer"
-                      onClick={() =>
-                        handleProfileClick(user?.bioDataId, currentPage)
-                      }
+                      onClick={() => handleProfileClick(user?.bioDataId)}
                     >
                       {user.personalDetails.fullname}
                     </td>
@@ -747,7 +798,6 @@ const MatrimonialProfiles = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-4 flex justify-center">
             <Pagination
