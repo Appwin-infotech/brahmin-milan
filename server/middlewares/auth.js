@@ -21,6 +21,7 @@ const verifyToken = async (req, res, next) => {
 
       // ✅ First check User collection
       let user = await User.findById(decoded.userId);
+      console.log(user, "decoded.userId");
       let role = "user";
 
       // ✅ If not found, check Admin collection

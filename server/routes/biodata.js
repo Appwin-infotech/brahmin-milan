@@ -21,6 +21,7 @@ router.put(
   ]),
   controller.updatePersonalDetails
 );
+
 router.post('/createPartnerPreferences', verifyToken, controller.createPartnerPreferences);
 router.put('/updatePartnerPreferences', verifyToken, controller.updatePartnerPreferences);
 router.get('/getBiodata', verifyToken, controller.getBiodata);

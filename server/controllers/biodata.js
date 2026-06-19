@@ -15,12 +15,44 @@ const { BASE_URL } = require("../utils/constants");
 
 const createPersonalDetails = async (req, res) => {
   try {
-    const { _id: userId, userId: bioDataId } = req.user;
+    const isAdmin = req.user.role === "admin";
+
+    // 1. Determine whose biodata this is for
+    let userId;
+
+    if (isAdmin) {
+      // Admin must specify which user they are creating biodata for
+      userId = req.body.targetUserId;
+
+      if (!userId) {
+        return res.status(400).json({
+          status: false,
+          message: "targetUserId is required when an admin creates biodata on behalf of a user.",
+        });
+      }
+    } else {
+      userId = req.user._id;
+    }
+
     const { gender, ...personalDetails } = req.body;
+
+    // Remove targetUserId from personalDetails if present (don't store it as a biodata field)
+    delete personalDetails.targetUserId;
+
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
 
-    // 1. Check subscription
+    // 2. Fetch the TARGET user (not req.user) and check subscription
     const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(400).json({
+        status: false,
+        message: "Target user not found.",
+      });
+    }
+
+    const bioDataId = user.userId;
+
     const today = new Date();
 
     const hasValidSubscription = user?.serviceSubscriptions?.some(
@@ -69,11 +101,16 @@ const createPersonalDetails = async (req, res) => {
       });
     }
 
-    personalDetails.closeUpPhoto = uploadedPhotos.map((file) =>
-      file.path.replace(/\\/g, "/")
-    );
+    const { uploadBufferToCloudinary } = require("../config/cloudinary");
 
-    // 3. Check if biodata already exists
+    const cloudinaryUrls = await Promise.all(
+      uploadedPhotos.map((file) =>
+        uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
+      )
+    );
+    personalDetails.closeUpPhoto = cloudinaryUrls;
+
+    // 3. Check if biodata already exists — for the TARGET user
     const existingBiodata = await Biodata.findOne({ userId });
 
     if (existingBiodata?.personalDetails != null) {
@@ -92,7 +129,7 @@ const createPersonalDetails = async (req, res) => {
       });
     }
 
-    // 4. Create new biodata
+    // 4. Create new biodata — owned by the TARGET user
     const biodata = new Biodata({
       userId,
       bioDataId,
@@ -103,7 +140,7 @@ const createPersonalDetails = async (req, res) => {
 
     await biodata.save();
 
-    // Update isMatrimonial flag
+    // Update isMatrimonial flag for the TARGET user
     await updateUserProfileType(userId, "isMatrimonial");
 
     await biodata.populate({ path: "userId", select: "serviceSubscriptions" });
@@ -111,7 +148,6 @@ const createPersonalDetails = async (req, res) => {
     // 5. Notify Admins
     const admins = await Admin.find();
     if (admins.length > 0) {
-      // ✅ Use first photo in array as the preview photo for notifications
       const previewPhoto = biodata?.personalDetails?.closeUpPhoto?.[0];
       const notificationMessage = `${biodata?.personalDetails?.fullname} has created a Matrimonial Profile.`;
 
@@ -120,7 +156,7 @@ const createPersonalDetails = async (req, res) => {
           "biodataCreated",
           admin._id,
           notificationMessage,
-          previewPhoto,   // ✅ first photo used as preview
+          previewPhoto,
           biodata
         );
         const notification = new Notification({
@@ -130,7 +166,7 @@ const createPersonalDetails = async (req, res) => {
           relatedData: {
             BiodataId: biodata?.bioDataId,
             createdBy: biodata?.personalDetails?.fullname,
-            photoUrl: previewPhoto,   // ✅ first photo used as preview
+            photoUrl: previewPhoto,
           },
           message: notificationMessage,
           seen: false,
@@ -146,6 +182,7 @@ const createPersonalDetails = async (req, res) => {
       data: biodata,
     });
   } catch (error) {
+    console.error("Full error:", error);
     res.status(500).json({
       status: false,
       message: "Error creating personal details.",
@@ -207,10 +244,27 @@ const updatePersonalDetails = async (req, res) => {
 
     // Step 2: Append newly uploaded photos
     const uploadedPhotos = req.files?.['closeUpPhoto'] || [];
-    const newPhotoPaths = uploadedPhotos.map((file) =>
-      file.path.replace(/\\/g, "/")
+    // const newPhotoPaths = uploadedPhotos.map((file) =>
+    //   file.path.replace(/\\/g, "/")
+    // );
+    // ✅ Add
+    const { uploadBufferToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
+
+    // Delete removed photos from Cloudinary
+    if (removePhotos) {
+      const toRemove = Array.isArray(removePhotos) ? removePhotos : [removePhotos];
+      await Promise.all(toRemove.map((url) => deleteFromCloudinary(url)));
+      existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
+    }
+
+    // Upload new photos
+    const newCloudinaryUrls = await Promise.all(
+      uploadedPhotos.map((file) =>
+        uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
+      )
     );
-    const mergedPhotos = [...existingPhotos, ...newPhotoPaths];
+    const mergedPhotos = [...existingPhotos, ...newCloudinaryUrls];
+    // const mergedPhotos = [...existingPhotos, ...newPhotoPaths];
 
     // Step 3: Validate final count is within 1–3
     if (mergedPhotos.length < 1) {
@@ -467,6 +521,7 @@ const getBiodata = async (req, res) => {
     });
   }
 };
+
 // Get biodataByUserId for basic user
 const getBiodataByUserId = async (req, res) => {
   try {
@@ -558,7 +613,7 @@ const getBiodataByUserId = async (req, res) => {
           userId: biodata.userId,
           bioDataId: biodata.bioDataId,
           gender: biodata.gender,
-          personalDetails,          
+          personalDetails,
           verified: biodata.verified,
           verifiedBy: biodata.verifiedBy || null,
           profileType: biodata.profileType,

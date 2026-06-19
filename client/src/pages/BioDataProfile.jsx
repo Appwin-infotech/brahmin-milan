@@ -203,8 +203,6 @@ const BioDataProfile = () => {
       title: "Profile Images",
       fields: {
         closeUpPhoto: { label: "Close Up Photo", type: "image" },
-        fullPhoto: { label: "Full Body Photo", type: "image" },
-        bestPhoto: { label: "Best Photo", type: "image" },
       },
     },
   ];
@@ -316,13 +314,10 @@ const BioDataProfile = () => {
                           className="flex flex-col items-center gap-2"
                         >
                           <img
-                            src={IMAGE_URL + photo}
+                            src={photo.startsWith("http") ? photo : IMAGE_URL + photo}
                             alt={`${label} ${i + 1}`}
                             className="h-64 w-full object-cover rounded-lg shadow-lg"
                           />
-                          <span className="text-black text-sm">
-                            {label} {photoArray.length > 1 ? i + 1 : ""}
-                          </span>
                         </div>
                       ));
                     }

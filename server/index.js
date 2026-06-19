@@ -1,8 +1,9 @@
+const dotenv = require("dotenv");
+dotenv.config(); 
 const express = require("express");
 const database = require("./config/database");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-const dotenv = require("dotenv");
 require('./config/subscriptionChecker');
 const { cloudinaryConnect } = require("./config/cloudinary");
 const fileUpload = require("express-fileupload");
@@ -82,7 +83,7 @@ cloudinaryConnect();
 const path = require('path');
 
 // Serve static files from the "uploads" directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/v1/user', userRoute);
 app.use('/api/v1/biodata', biodataRouter);
 app.use('/api/v1/pandit', panditRoute);
