@@ -1,3 +1,316 @@
+// const { default: mongoose } = require("mongoose");
+// const Admin = require("../models/admin");
+// const Biodata = require("../models/biodata"); // Update with your model file path
+// const ConnectionRequest = require("../models/connectionRequest");
+// const Notification = require("../models/notification");
+// const Report = require("../models/report");
+// const SavedProfile = require("../models/savedProfiles");
+// const SuccessStory = require("../models/successStory");
+// const SuccessStoryRequest = require("../models/successStoryRequest");
+// const User = require("../models/user"); // Update with your model file path
+// const { sendNotificationToAdmin } = require("../socket/socket.server");
+// const cloudinary = require("cloudinary").v2;
+// const { updateUserProfileType } = require("./user");
+// const { BASE_URL } = require("../utils/constants");
+
+// const createPersonalDetails = async (req, res) => {
+//   try {
+//     const isAdmin = req.user.role === "admin";
+
+//     // 1. Determine whose biodata this is for
+//     let userId;
+
+//     if (isAdmin) {
+//       // Admin must specify which user they are creating biodata for
+//       userId = req.body.targetUserId;
+
+//       if (!userId) {
+//         return res.status(400).json({
+//           status: false,
+//           message: "targetUserId is required when an admin creates biodata on behalf of a user.",
+//         });
+//       }
+//     } else {
+//       userId = req.user._id;
+//     }
+
+//     const { gender, ...personalDetails } = req.body;
+
+//     // Remove targetUserId from personalDetails if present (don't store it as a biodata field)
+//     delete personalDetails.targetUserId;
+
+//     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+
+//     // 2. Fetch the TARGET user (not req.user) and check subscription
+//     const user = await User.findById(userId);
+
+//     if (!user) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Target user not found.",
+//       });
+//     }
+
+//     const bioDataId = user.userId;
+
+//     const today = new Date();
+
+//     const hasValidSubscription = user?.serviceSubscriptions?.some(
+//       (subscription) =>
+//         subscription.serviceType === "Biodata" &&
+//         subscription.status === "Active" &&
+//         new Date(subscription.endDate) > today
+//     );
+
+//     if (!hasValidSubscription) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "You do not have an active subscription for Biodata service.",
+//       });
+//     }
+
+//     // Validate ContactNumber1
+//     if (!personalDetails?.contactNumber1) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "ContactNumber1 is required.",
+//       });
+//     }
+
+//     if (!mobileRegex.test(personalDetails.contactNumber1)) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
+//       });
+//     }
+
+//     // ✅ Handle closeUpPhoto: validate 1–3 files, store as array of paths
+//     const uploadedPhotos = req.files?.['closeUpPhoto'];
+
+//     if (!uploadedPhotos || uploadedPhotos.length === 0) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "At least one close-up photo is required.",
+//       });
+//     }
+
+//     if (uploadedPhotos.length > 3) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "You can upload a maximum of 3 close-up photos.",
+//       });
+//     }
+
+//     const { uploadBufferToCloudinary } = require("../config/cloudinary");
+
+//     const cloudinaryUrls = await Promise.all(
+//       uploadedPhotos.map((file) =>
+//         uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
+//       )
+//     );
+//     personalDetails.closeUpPhoto = cloudinaryUrls;
+
+//     // 3. Check if biodata already exists — for the TARGET user
+//     const existingBiodata = await Biodata.findOne({ userId });
+
+//     if (existingBiodata?.personalDetails != null) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid Request! Personal Details already added for this user.",
+//       });
+//     }
+
+//     if (existingBiodata) {
+//       existingBiodata.personalDetails = personalDetails;
+//       await existingBiodata.save();
+//       return res.status(200).json({
+//         status: true,
+//         message: "Biodata updated successfully.",
+//       });
+//     }
+
+//     // 4. Create new biodata — owned by the TARGET user
+//     const biodata = new Biodata({
+//       userId,
+//       bioDataId,
+//       personalDetails,
+//       gender,
+//       latestActivityAt: Date.now(),
+//     });
+
+//     await biodata.save();
+
+//     // Update isMatrimonial flag for the TARGET user
+//     await updateUserProfileType(userId, "isMatrimonial");
+
+//     await biodata.populate({ path: "userId", select: "serviceSubscriptions" });
+
+//     // 5. Notify Admins
+//     const admins = await Admin.find();
+//     if (admins.length > 0) {
+//       const previewPhoto = biodata?.personalDetails?.closeUpPhoto?.[0];
+//       const notificationMessage = `${biodata?.personalDetails?.fullname} has created a Matrimonial Profile.`;
+
+//       for (const admin of admins) {
+//         sendNotificationToAdmin(
+//           "biodataCreated",
+//           admin._id,
+//           notificationMessage,
+//           previewPhoto,
+//           biodata
+//         );
+//         const notification = new Notification({
+//           userId: admin._id,
+//           userType: "Admin",
+//           notificationType: "biodataCreated",
+//           relatedData: {
+//             BiodataId: biodata?.bioDataId,
+//             createdBy: biodata?.personalDetails?.fullname,
+//             photoUrl: previewPhoto,
+//           },
+//           message: notificationMessage,
+//           seen: false,
+//           expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+//         });
+//         await notification.save();
+//       }
+//     }
+
+//     return res.status(200).json({
+//       status: true,
+//       message: "Personal details created successfully.",
+//       data: biodata,
+//     });
+//   } catch (error) {
+//     console.error("Full error:", error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Error creating personal details.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+// // Update Personal Details
+// const updatePersonalDetails = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const { gender, removePhotos, ...personalDetails } = req.body;
+//     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+
+//     // Find the biodata document
+//     const biodata = await Biodata.findOne({ userId });
+//     if (!biodata) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "No biodata found. Use the create endpoint to add personal details.",
+//       });
+//     }
+
+//     // Validate contactNumber1 if provided
+//     if (
+//       personalDetails.contactNumber1 &&
+//       !mobileRegex.test(personalDetails.contactNumber1)
+//     ) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
+//       });
+//     }
+
+//     // Validate contactNumber2 if provided
+//     if (
+//       personalDetails.contactNumber2 &&
+//       !mobileRegex.test(personalDetails.contactNumber2)
+//     ) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid ContactNumber2. Please enter a valid 10-digit mobile number.",
+//       });
+//     }
+
+//     // ─── Handle closeUpPhoto array ────────────────────────────────────────────
+
+//     // Start with existing photos
+//     let existingPhotos = biodata.personalDetails?.closeUpPhoto || [];
+
+//     // Step 1: Remove photos if client sent removePhotos (URL or array of URLs)
+//     // Client sends:  removePhotos: "/uploads/abc.jpg"
+//     //            or  removePhotos: ["/uploads/abc.jpg", "/uploads/def.jpg"]
+//     if (removePhotos) {
+//       const toRemove = Array.isArray(removePhotos) ? removePhotos : [removePhotos];
+//       existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
+//     }
+
+//     // Step 2: Append newly uploaded photos
+//     const uploadedPhotos = req.files?.['closeUpPhoto'] || [];
+//     // const newPhotoPaths = uploadedPhotos.map((file) =>
+//     //   file.path.replace(/\\/g, "/")
+//     // );
+//     // ✅ Add
+//     const { uploadBufferToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
+
+//     // Delete removed photos from Cloudinary
+//     if (removePhotos) {
+//       const toRemove = Array.isArray(removePhotos) ? removePhotos : [removePhotos];
+//       await Promise.all(toRemove.map((url) => deleteFromCloudinary(url)));
+//       existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
+//     }
+
+//     // Upload new photos
+//     const newCloudinaryUrls = await Promise.all(
+//       uploadedPhotos.map((file) =>
+//         uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
+//       )
+//     );
+//     const mergedPhotos = [...existingPhotos, ...newCloudinaryUrls];
+//     // const mergedPhotos = [...existingPhotos, ...newPhotoPaths];
+
+//     // Step 3: Validate final count is within 1–3
+//     if (mergedPhotos.length < 1) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "At least one close-up photo is required.",
+//       });
+//     }
+
+//     if (mergedPhotos.length > 3) {
+//       return res.status(400).json({
+//         status: false,
+//         message: `Too many photos. You can have a maximum of 3 close-up photos. Currently you would have ${mergedPhotos.length}.`,
+//       });
+//     }
+
+//     personalDetails.closeUpPhoto = mergedPhotos;
+
+//     // ──────────────────────────────────────────────────────────────────────────
+
+//     // Merge personal details with existing ones
+//     biodata.personalDetails = {
+//       ...biodata.personalDetails.toObject?.() ?? biodata.personalDetails,
+//       ...personalDetails,
+//     };
+
+//     if (gender) {
+//       biodata.gender = gender;
+//     }
+
+//     await biodata.save();
+
+//     return res.status(200).json({
+//       status: true,
+//       message: "Personal details updated successfully.",
+//       data: biodata,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       status: false,
+//       message: "Error updating personal details.",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const { default: mongoose } = require("mongoose");
 const Admin = require("../models/admin");
 const Biodata = require("../models/biodata"); // Update with your model file path
@@ -12,18 +325,26 @@ const { sendNotificationToAdmin } = require("../socket/socket.server");
 const cloudinary = require("cloudinary").v2;
 const { updateUserProfileType } = require("./user");
 const { BASE_URL } = require("../utils/constants");
-
+const { uploadBufferToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
+ 
+const extractCloseUpPhotos = (req) => {
+  const allFiles = req.files || [];
+  const closeUpPhotos = allFiles.filter((f) => f.fieldname === "closeUpPhoto");
+  const unexpected = allFiles.filter((f) => f.fieldname !== "closeUpPhoto");
+  return { closeUpPhotos, unexpected };
+};
+ 
 const createPersonalDetails = async (req, res) => {
   try {
     const isAdmin = req.user.role === "admin";
-
+ 
     // 1. Determine whose biodata this is for
     let userId;
-
+ 
     if (isAdmin) {
       // Admin must specify which user they are creating biodata for
       userId = req.body.targetUserId;
-
+ 
       if (!userId) {
         return res.status(400).json({
           status: false,
@@ -33,42 +354,42 @@ const createPersonalDetails = async (req, res) => {
     } else {
       userId = req.user._id;
     }
-
+ 
     const { gender, ...personalDetails } = req.body;
-
+ 
     // Remove targetUserId from personalDetails if present (don't store it as a biodata field)
     delete personalDetails.targetUserId;
-
+ 
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-
+ 
     // 2. Fetch the TARGET user (not req.user) and check subscription
     const user = await User.findById(userId);
-
+ 
     if (!user) {
       return res.status(400).json({
         status: false,
         message: "Target user not found.",
       });
     }
-
+ 
     const bioDataId = user.userId;
-
+ 
     const today = new Date();
-
+ 
     const hasValidSubscription = user?.serviceSubscriptions?.some(
       (subscription) =>
         subscription.serviceType === "Biodata" &&
         subscription.status === "Active" &&
         new Date(subscription.endDate) > today
     );
-
+ 
     if (!hasValidSubscription) {
       return res.status(400).json({
         status: false,
         message: "You do not have an active subscription for Biodata service.",
       });
     }
-
+ 
     // Validate ContactNumber1
     if (!personalDetails?.contactNumber1) {
       return res.status(400).json({
@@ -76,50 +397,62 @@ const createPersonalDetails = async (req, res) => {
         message: "ContactNumber1 is required.",
       });
     }
-
+ 
     if (!mobileRegex.test(personalDetails.contactNumber1)) {
       return res.status(400).json({
         status: false,
         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
       });
     }
-
-    // ✅ Handle closeUpPhoto: validate 1–3 files, store as array of paths
-    const uploadedPhotos = req.files?.['closeUpPhoto'];
-
+ 
+    // ✅ Handle closeUpPhoto: validate 1–3 files, store as array of URLs
+    // (req.files is now an array — see extractCloseUpPhotos above)
+    const { closeUpPhotos: uploadedPhotos, unexpected } = extractCloseUpPhotos(req);
+ 
+    if (unexpected.length > 0) {
+      console.warn(
+        "Unexpected file field(s) received:",
+        unexpected.map((f) => f.fieldname)
+      );
+      return res.status(400).json({
+        status: false,
+        message: `Unexpected file field(s): ${unexpected
+          .map((f) => f.fieldname)
+          .join(", ")}. Expected field name 'closeUpPhoto'.`,
+      });
+    }
+ 
     if (!uploadedPhotos || uploadedPhotos.length === 0) {
       return res.status(400).json({
         status: false,
         message: "At least one close-up photo is required.",
       });
     }
-
+ 
     if (uploadedPhotos.length > 3) {
       return res.status(400).json({
         status: false,
         message: "You can upload a maximum of 3 close-up photos.",
       });
     }
-
-    const { uploadBufferToCloudinary } = require("../config/cloudinary");
-
+ 
     const cloudinaryUrls = await Promise.all(
       uploadedPhotos.map((file) =>
         uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
       )
     );
     personalDetails.closeUpPhoto = cloudinaryUrls;
-
+ 
     // 3. Check if biodata already exists — for the TARGET user
     const existingBiodata = await Biodata.findOne({ userId });
-
+ 
     if (existingBiodata?.personalDetails != null) {
       return res.status(400).json({
         status: false,
         message: "Invalid Request! Personal Details already added for this user.",
       });
     }
-
+ 
     if (existingBiodata) {
       existingBiodata.personalDetails = personalDetails;
       await existingBiodata.save();
@@ -128,7 +461,7 @@ const createPersonalDetails = async (req, res) => {
         message: "Biodata updated successfully.",
       });
     }
-
+ 
     // 4. Create new biodata — owned by the TARGET user
     const biodata = new Biodata({
       userId,
@@ -137,20 +470,20 @@ const createPersonalDetails = async (req, res) => {
       gender,
       latestActivityAt: Date.now(),
     });
-
+ 
     await biodata.save();
-
+ 
     // Update isMatrimonial flag for the TARGET user
     await updateUserProfileType(userId, "isMatrimonial");
-
+ 
     await biodata.populate({ path: "userId", select: "serviceSubscriptions" });
-
+ 
     // 5. Notify Admins
     const admins = await Admin.find();
     if (admins.length > 0) {
       const previewPhoto = biodata?.personalDetails?.closeUpPhoto?.[0];
       const notificationMessage = `${biodata?.personalDetails?.fullname} has created a Matrimonial Profile.`;
-
+ 
       for (const admin of admins) {
         sendNotificationToAdmin(
           "biodataCreated",
@@ -175,7 +508,7 @@ const createPersonalDetails = async (req, res) => {
         await notification.save();
       }
     }
-
+ 
     return res.status(200).json({
       status: true,
       message: "Personal details created successfully.",
@@ -190,14 +523,14 @@ const createPersonalDetails = async (req, res) => {
     });
   }
 };
-
+ 
 // Update Personal Details
 const updatePersonalDetails = async (req, res) => {
   try {
     const userId = req.user._id;
     const { gender, removePhotos, ...personalDetails } = req.body;
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-
+ 
     // Find the biodata document
     const biodata = await Biodata.findOne({ userId });
     if (!biodata) {
@@ -206,7 +539,7 @@ const updatePersonalDetails = async (req, res) => {
         message: "No biodata found. Use the create endpoint to add personal details.",
       });
     }
-
+ 
     // Validate contactNumber1 if provided
     if (
       personalDetails.contactNumber1 &&
@@ -217,7 +550,7 @@ const updatePersonalDetails = async (req, res) => {
         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
       });
     }
-
+ 
     // Validate contactNumber2 if provided
     if (
       personalDetails.contactNumber2 &&
@@ -228,44 +561,44 @@ const updatePersonalDetails = async (req, res) => {
         message: "Invalid ContactNumber2. Please enter a valid 10-digit mobile number.",
       });
     }
-
+ 
     // ─── Handle closeUpPhoto array ────────────────────────────────────────────
-
+ 
     // Start with existing photos
     let existingPhotos = biodata.personalDetails?.closeUpPhoto || [];
-
-    // Step 1: Remove photos if client sent removePhotos (URL or array of URLs)
-    // Client sends:  removePhotos: "/uploads/abc.jpg"
-    //            or  removePhotos: ["/uploads/abc.jpg", "/uploads/def.jpg"]
-    if (removePhotos) {
-      const toRemove = Array.isArray(removePhotos) ? removePhotos : [removePhotos];
-      existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
-    }
-
-    // Step 2: Append newly uploaded photos
-    const uploadedPhotos = req.files?.['closeUpPhoto'] || [];
-    // const newPhotoPaths = uploadedPhotos.map((file) =>
-    //   file.path.replace(/\\/g, "/")
-    // );
-    // ✅ Add
-    const { uploadBufferToCloudinary, deleteFromCloudinary } = require("../config/cloudinary");
-
-    // Delete removed photos from Cloudinary
+ 
+    // Step 1: Remove photos if client sent removePhotos (URL or array of URLs),
+    // deleting them from Cloudinary too.
     if (removePhotos) {
       const toRemove = Array.isArray(removePhotos) ? removePhotos : [removePhotos];
       await Promise.all(toRemove.map((url) => deleteFromCloudinary(url)));
       existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
     }
-
-    // Upload new photos
+ 
+    // Step 2: Append newly uploaded photos
+    // (req.files is now an array — see extractCloseUpPhotos above)
+    const { closeUpPhotos: uploadedPhotos, unexpected } = extractCloseUpPhotos(req);
+ 
+    if (unexpected.length > 0) {
+      console.warn(
+        "Unexpected file field(s) received:",
+        unexpected.map((f) => f.fieldname)
+      );
+      return res.status(400).json({
+        status: false,
+        message: `Unexpected file field(s): ${unexpected
+          .map((f) => f.fieldname)
+          .join(", ")}. Expected field name 'closeUpPhoto'.`,
+      });
+    }
+ 
     const newCloudinaryUrls = await Promise.all(
       uploadedPhotos.map((file) =>
         uploadBufferToCloudinary(file.buffer, "biodata/closeUpPhotos")
       )
     );
     const mergedPhotos = [...existingPhotos, ...newCloudinaryUrls];
-    // const mergedPhotos = [...existingPhotos, ...newPhotoPaths];
-
+ 
     // Step 3: Validate final count is within 1–3
     if (mergedPhotos.length < 1) {
       return res.status(400).json({
@@ -273,36 +606,37 @@ const updatePersonalDetails = async (req, res) => {
         message: "At least one close-up photo is required.",
       });
     }
-
+ 
     if (mergedPhotos.length > 3) {
       return res.status(400).json({
         status: false,
         message: `Too many photos. You can have a maximum of 3 close-up photos. Currently you would have ${mergedPhotos.length}.`,
       });
     }
-
+ 
     personalDetails.closeUpPhoto = mergedPhotos;
-
+ 
     // ──────────────────────────────────────────────────────────────────────────
-
+ 
     // Merge personal details with existing ones
     biodata.personalDetails = {
       ...biodata.personalDetails.toObject?.() ?? biodata.personalDetails,
       ...personalDetails,
     };
-
+ 
     if (gender) {
       biodata.gender = gender;
     }
-
+ 
     await biodata.save();
-
+ 
     return res.status(200).json({
       status: true,
       message: "Personal details updated successfully.",
       data: biodata,
     });
   } catch (error) {
+    console.error("Full error:", error);
     res.status(500).json({
       status: false,
       message: "Error updating personal details.",
