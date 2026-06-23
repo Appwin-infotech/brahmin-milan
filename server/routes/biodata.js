@@ -50,12 +50,14 @@ router.post(
   (req, res, next) => {
     upload.any()(req, res, (err) => {
       if (err) {
-        console.error("MULTER ERROR:", err.code, "| field:", err.field, "| message:", err.message);
+        console.error("MULTER ERROR FULL:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+        console.error("MULTER ERROR NAME/STACK:", err.name, err.stack);
         return res.status(400).json({
           status: false,
           message: "Unexpected field",
-          debug_code: err.code,
-          debug_field: err.field,
+          debug_name: err.name,
+          debug_message: err.message,
+          debug_stack: err.stack,
         });
       }
       next();

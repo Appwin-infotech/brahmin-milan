@@ -32,7 +32,7 @@ cron.schedule('* * * * *', async () => {
         } 
       }
     );
-    console.log("Expired subscriptions in Subscription model updated:", subscriptionUpdateResult.modifiedCount);
+    // console.log("Expired subscriptions in Subscription model updated:", subscriptionUpdateResult.modifiedCount);
 
   } catch (error) {
     console.error("Error updating expired subscriptions:", error);
