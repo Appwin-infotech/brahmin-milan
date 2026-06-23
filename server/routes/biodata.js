@@ -5,12 +5,29 @@ const upload = require('../config/multerConfig');
 
 const router = Router();
 
+// router.post(
+//   '/createPersonalDetails',
+//   verifyToken,
+//   upload.fields([
+//     { name: 'closeUpPhoto', maxCount: 3 }, 
+//   ]),
+//   controller.createPersonalDetails
+// );
 router.post(
   '/createPersonalDetails',
   verifyToken,
-  upload.fields([
-    { name: 'closeUpPhoto', maxCount: 3 }, 
-  ]),
+  (req, res, next) => {
+    upload.fields([{ name: 'closeUpPhoto', maxCount: 3 }])(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err.code, err.field); 
+        return res.status(400).json({
+          status: false,
+          message: `Unexpected field: ${err.field || 'unknown'}`,
+        });
+      }
+      next();
+    });
+  },
   controller.createPersonalDetails
 );
 router.put(
