@@ -38,10 +38,29 @@ const upload = require('../config/multerConfig');
 
 const router = Router();
 
+// router.post(
+//   '/createPersonalDetails',
+//   verifyToken,
+//   upload.any(),
+//   controller.createPersonalDetails
+// );
 router.post(
   '/createPersonalDetails',
   verifyToken,
-  upload.any(),
+  (req, res, next) => {
+    upload.any()(req, res, (err) => {
+      if (err) {
+        console.error("MULTER ERROR:", err.code, "| field:", err.field, "| message:", err.message);
+        return res.status(400).json({
+          status: false,
+          message: "Unexpected field",
+          debug_code: err.code,
+          debug_field: err.field,
+        });
+      }
+      next();
+    });
+  },
   controller.createPersonalDetails
 );
 
