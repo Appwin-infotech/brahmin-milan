@@ -42,12 +42,12 @@ const createActivistProfileRequest = async (req, res) => {
     }
 
     // Validate that profilePhoto file is present
-if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
-  return res.status(400).json({
-    status: false,
-    message: "Profile Photo is required!",
-  });
-}
+    if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
+      return res.status(400).json({
+        status: false,
+        message: "Profile Photo is required!",
+      });
+    }
 
     // Validate mobile number format
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
@@ -120,8 +120,8 @@ if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
         message: "You have already Registered as Activist!",
       });
     }
-    
-  // Handle profilePhoto upload via req.files
+
+    // Handle profilePhoto upload via req.files
     let photoUrlPath = null;
     if (req.files?.profilePhoto && req.files.profilePhoto.length > 0) {
       photoUrlPath = req.files.profilePhoto[0].path.replace(/\\/g, "/");
@@ -134,7 +134,7 @@ if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
       fullname,
       subCaste,
       dob,
-      
+
       state,
       city,
       mobileNo,
@@ -155,7 +155,7 @@ if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
 
       // Loop through each admin and create a notification for them
       for (const admin of admins) {
-        sendNotificationToAdmin("activistRequest",admin._id, notificationMessage,newActivistRequest?.profilePhoto,newActivistRequest);
+        sendNotificationToAdmin("activistRequest", admin._id, notificationMessage, newActivistRequest?.profilePhoto, newActivistRequest);
         // Create notification object for each admin
         const notification = new Notification({
           userId: admin._id, // Set the admin's _id as the userId of the notification
@@ -337,7 +337,7 @@ const verifyMetrimonialProfile = async (req, res) => {
 //update Activist profile
 const updateActivistProfile = async (req, res) => {
   try {
-    
+
     const userId = req?.user?._id;
     const dataForUpdate = req.body;
     const { knownActivistId, dob } = dataForUpdate;
@@ -499,7 +499,7 @@ const getAllActivist = async (req, res) => {
 const fetchActivistForAdmin = async (req, res) => {
   try {
     const userId = req?.user?._id;
-    const { search,locality,gender, status,subCaste, startDate, endDate } =
+    const { search, locality, gender, status, subCaste, startDate, endDate } =
       req.query;
 
     let filterConditions = {
@@ -524,7 +524,7 @@ const fetchActivistForAdmin = async (req, res) => {
       }
     }
 
-       // Apply locality filter (check both state and city)
+    // Apply locality filter (check both state and city)
     if (locality) {
       filterConditions.$or = [
         { state: { $regex: locality, $options: "i" } }, // Match locality with state

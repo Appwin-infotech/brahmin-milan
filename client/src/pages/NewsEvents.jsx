@@ -143,59 +143,60 @@ const EventPostsTable = () => {
       title: post.title || "",
       description: post.description || "",
       images: post.images || [],
-      date: post.createdAt ? new Date(post.createdAt).toISOString().split("T")[0] : "",
+      date: post.createdAt
+        ? new Date(post.createdAt).toISOString().split("T")[0]
+        : "",
     });
     setEditImages([]);
     setEditModalOpen(true);
   };
 
-const handleUpdate = async (e) => {
-  e.preventDefault();
-  setEditLoading(true);
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
 
-  try {
-    const formData = new FormData();
+    try {
+      const formData = new FormData();
 
-    formData.append("postId", editForm.postId);
-    formData.append("title", editForm.title);
-    formData.append("description", editForm.description);
-    formData.append("date", editForm.date);
+      formData.append("postId", editForm.postId);
+      formData.append("title", editForm.title);
+      formData.append("description", editForm.description);
+      formData.append("date", editForm.date);
 
-    // Pass removeImages as JSON string
-    const imagesToRemove = allPosts
-      .find((p) => p._id === editForm.postId)
-      .images.filter((img) => !editForm.images.includes(img));
-    formData.append("removeImages", JSON.stringify(imagesToRemove));
+      // Pass removeImages as JSON string
+      const imagesToRemove = allPosts
+        .find((p) => p._id === editForm.postId)
+        .images.filter((img) => !editForm.images.includes(img));
+      formData.append("removeImages", JSON.stringify(imagesToRemove));
 
-    // Append new image files
-    if (editImages.length > 0) {
-      Array.from(editImages).forEach((file) => {
-        formData.append("images", file);
-      });
-    }
-
-    const res = await fetch(
-      `${BASE_URL}/api/v1/admin/updateEventPostByAdmin/${editForm.postId}`,
-      {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: formData,
+      // Append new image files
+      if (editImages.length > 0) {
+        Array.from(editImages).forEach((file) => {
+          formData.append("images", file);
+        });
       }
-    );
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message);
+      const res = await fetch(
+        `${BASE_URL}/api/v1/admin/updateEventPostByAdmin/${editForm.postId}`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          body: formData,
+        }
+      );
 
-    toast.success("Event post updated successfully!");
-    setEditModalOpen(false);
-    fetchEventPosts();
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    setEditLoading(false);
-  }
-};
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
+      toast.success("Event post updated successfully!");
+      setEditModalOpen(false);
+      fetchEventPosts();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const handleDelete = async (id) => {
     const confirmDelete = window.confirm(
@@ -268,7 +269,7 @@ const handleUpdate = async (e) => {
 
   return (
     <div className="min-h-screen p-8 pt-0">
-      <PageHeader title="Activist Profiles" />
+      <PageHeader title="News Events" />
       <div className="max-w-8xl mx-auto bg-white mt-6 p-6 rounded-lg shadow-lg">
         <h2 className="text-xl font-bold mb-4">Event Posts</h2>
 
@@ -321,7 +322,7 @@ const handleUpdate = async (e) => {
                 <tr>
                   <th className="px-4 py-2 ">No</th>
                   <th className="px-4 py-2 ">Image</th>
-                  <th className="px-4 py-2 ">Title</th>
+                  {/* <th className="px-4 py-2 ">Title</th> */}
                   <th className="px-4 py-2 ">Date</th>
                   <th className="px-4 py-2 ">Likes</th>
                   <th className="px-4 py-2 ">Comments</th>
@@ -351,7 +352,7 @@ const handleUpdate = async (e) => {
                             {post.images.slice(0, 3).map((imgUrl, idx) => (
                               <img
                                 key={idx}
-                                src={IMAGE_URL+imgUrl}
+                                src={IMAGE_URL + imgUrl}
                                 alt={`thumbnail-${idx}`}
                                 className="w-10 h-10 object-cover rounded-md"
                               />
@@ -366,7 +367,7 @@ const handleUpdate = async (e) => {
                           <span>No images</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 border">{post.title || "N/A"}</td>
+                      {/* <td className="px-4 py-2 border">{post.title || "N/A"}</td> */}
                       <td className="px-4 py-2 border">
                         {new Date(
                           post.date || post.createdAt
@@ -449,13 +450,12 @@ const handleUpdate = async (e) => {
               {selectedPost.images.map((imgUrl, idx) => (
                 <img
                   key={idx}
-                  src={IMAGE_URL+imgUrl}
+                  src={IMAGE_URL + imgUrl}
                   alt={`event-img-${idx}`}
                   className="w-60 h-60 object-cover rounded-md shadow"
                 />
               ))}
             </div>
-            
           )}
 
           {/* Liked By Section with Toggle */}
@@ -550,7 +550,7 @@ const handleUpdate = async (e) => {
       >
         <h2 className="text-xl font-bold mb-4">Edit Event Post</h2>
         <form onSubmit={handleUpdate}>
-          <label className="block mb-2 font-semibold">Title</label>
+          {/* <label className="block mb-2 font-semibold">Title</label>
           <input
             type="text"
             value={editForm.title}
@@ -559,7 +559,7 @@ const handleUpdate = async (e) => {
             }
             className="w-full p-2 border rounded mb-3"
             required
-          />
+          /> */}
 
           <label className="block mb-2 font-semibold">Description</label>
           <textarea
@@ -583,51 +583,49 @@ const handleUpdate = async (e) => {
 
           <label className="block mb-2 font-semibold">Images</label>
           <div className="flex flex-wrap gap-2 mb-2">
-{editForm.images.map((img, idx) => (
-  <div key={idx} className="relative">
-    <img
-      src={IMAGE_URL + img}
-      alt={`img-${idx}`}
-      className="w-16 h-16 object-cover rounded"
-    />
-    <button
-      type="button"
-      className="absolute top-0 right-0 bg-red-500 text-white rounded-full px-1"
-      onClick={() =>
-        setEditForm((prev) => ({
-          ...prev,
-          images: prev.images.filter((_, i) => i !== idx),
-        }))
-      }
-    >
-      &times;
-    </button>
-  </div>
-))}
+            {editForm.images.map((img, idx) => (
+              <div key={idx} className="relative">
+                <img
+                  src={IMAGE_URL + img}
+                  alt={`img-${idx}`}
+                  className="w-16 h-16 object-cover rounded"
+                />
+                <button
+                  type="button"
+                  className="absolute top-0 right-0 bg-red-500 text-white rounded-full px-1"
+                  onClick={() =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      images: prev.images.filter((_, i) => i !== idx),
+                    }))
+                  }
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
 
-{/* New images preview */}
-  {Array.from(editImages).map((file, idx) => {
-    const objectUrl = URL.createObjectURL(file);
-    return (
-      <div key={`new-${idx}`} className="relative">
-        <img
-          src={objectUrl}
-          alt={`new-img-${idx}`}
-          className="w-16 h-16 object-cover rounded"
-        />
-      </div>
-    );
-  })}
-
+            {/* New images preview */}
+            {Array.from(editImages).map((file, idx) => {
+              const objectUrl = URL.createObjectURL(file);
+              return (
+                <div key={`new-${idx}`} className="relative">
+                  <img
+                    src={objectUrl}
+                    alt={`new-img-${idx}`}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                </div>
+              );
+            })}
           </div>
-<input
-  type="file"
-  accept="image/*"
-  multiple
-  onChange={(e) => setEditImages(e.target.files)}
-  className="mb-3"
-/>
-
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setEditImages(e.target.files)}
+            className="mb-3"
+          />
 
           <div className="flex gap-3 mt-4">
             <button

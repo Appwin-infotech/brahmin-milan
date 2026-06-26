@@ -42,7 +42,7 @@ const menuItems = [
   { path: "/activist-profiles", label: "Activist Profiles", icon: <FaHandshake /> },
   { path: "/success-stories", label: "Success Stories", icon: <FaDiagramSuccessor /> },
   { path: "/profile-approvals", label: "Profile Approvals", icon: <MdApproval /> },
-  { path: "/story-approvals", label: "SuccessStory Approvals", icon: <MdApproval /> },
+  // { path: "/story-approvals", label: "SuccessStory Approvals", icon: <MdApproval /> },
   { path: "/default-Advertisement", label: "Default Advertisement", icon: <MdAddBusiness /> },
   { path: "/create-Advertisement", label: "Create Advertisement", icon: <MdAddBusiness /> },
   { path: "/manage-subscriptions", label: "Subscriptions", icon: <MdManageHistory /> },
