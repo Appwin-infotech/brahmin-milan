@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { FaEdit, FaSave } from "react-icons/fa";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants";
+import { BASE_URL, subCasteOptions } from "../utils/constants";
+import { getPhotoUrl } from "../utils/imageHelpers";
 import { toast, ToastContainer } from "react-toastify";
 
 const DharmshalaProfile = () => {
@@ -274,9 +275,13 @@ const DharmshalaProfile = () => {
               .map((img, i) => (
                 <div key={img} className="relative group">
                   <img
-                    src={IMAGE_URL+img}
+                    src={getPhotoUrl(img)}
                     alt={`img-${i}`}
                     className="rounded-lg shadow-sm object-cover h-48 w-full"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/placeholder-image.png";
+                    }}
                   />
                   {isEditing && (
                     <button

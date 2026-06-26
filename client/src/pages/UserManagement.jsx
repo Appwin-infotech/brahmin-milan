@@ -1302,7 +1302,7 @@ const UserManagementPage = () => {
                     <td className="py-3 px-4">
                       {user.photoUrl?.[0] ? (
                         <img
-                          src={IMAGE_URL + user.photoUrl[0]}
+                          src={user.photoUrl[0]}
                           alt="User"
                           className="w-10 h-10 rounded-full object-cover border cursor-pointer"
                           onClick={() => openImageModal(user.photoUrl)}
@@ -1431,7 +1431,7 @@ const UserManagementPage = () => {
             <div className="flex justify-center">
               {selectedUser.photoUrl?.[0] ? (
                 <img
-                  src={IMAGE_URL + selectedUser.photoUrl[0]}
+                  src={selectedUser.photoUrl[0]}
                   alt="User Photo"
                   className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 object-cover rounded-full shadow-md border-4 border-indigo-200"
                 />

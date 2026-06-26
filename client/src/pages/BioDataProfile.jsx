@@ -15,7 +15,7 @@ const BioDataProfile = () => {
   const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editableDetails, setEditableDetails] = useState({});
-  const [verifying, setVerifying] = useState(false); // ✅ Point 11 — verify loading state
+  const [verifying, setVerifying] = useState(false);
 
   const dateFields = ["dob"];
   const isDateField = (key) => dateFields.includes(key);
@@ -314,7 +314,11 @@ const BioDataProfile = () => {
                           className="flex flex-col items-center gap-2"
                         >
                           <img
-                            src={photo.startsWith("http") ? photo : IMAGE_URL + photo}
+                            src={
+                              photo.startsWith("http")
+                                ? photo
+                                : IMAGE_URL + photo
+                            }
                             alt={`${label} ${i + 1}`}
                             className="h-64 w-full object-cover rounded-lg shadow-lg"
                           />

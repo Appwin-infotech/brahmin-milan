@@ -4,12 +4,13 @@ import {
   AiOutlineSave,
   AiOutlineClose,
 } from "react-icons/ai";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import PageHeader from "../components/common/PageHeader";
 import NotFoundPage from "./NotFound";
-import { BASE_URL, IMAGE_URL} from "../utils/constants";
+import { BASE_URL } from "../utils/constants";
+import { getPhotoUrl } from "../utils/imageHelpers";
 
 const SingleUserPKA = () => {
   const { userType, id } = useParams();
@@ -167,9 +168,9 @@ const SingleUserPKA = () => {
   };
 
   const backToList = () => {
-  const page = new URLSearchParams(location.search).get("page");
-  navigate(-1);
-};
+    const page = new URLSearchParams(location.search).get("page");
+    navigate(-1);
+  };
 
   // Render
   return (
@@ -292,15 +293,20 @@ const SingleUserPKA = () => {
           </div>
 
           {/* Profile Photo Section */}
+
           <div className="bg-white rounded-lg p-8 shadow-lg">
             <h2 className="text-xl font-bold mb-2">Profile Photo</h2>
             <div className="flex items-center gap-4">
               {profilePhoto ? (
                 <div className="relative">
                   <img
-                    src={IMAGE_URL+profilePhoto}
+                    src={getPhotoUrl(profilePhoto)}
                     alt="Profile"
                     className="h-24 w-24 object-cover rounded"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/placeholder-image.png";
+                    }}
                   />
                   {editMode && (
                     <button
@@ -336,9 +342,13 @@ const SingleUserPKA = () => {
               {additionalPhotos.map((img, idx) => (
                 <div key={idx} className="relative">
                   <img
-                    src={IMAGE_URL+img}
+                    src={getPhotoUrl(img)}
                     alt={`additional-${idx}`}
                     className="h-24 w-24 object-cover rounded"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/placeholder-image.png";
+                    }}
                   />
                   {editMode && (
                     <button
@@ -353,17 +363,17 @@ const SingleUserPKA = () => {
                 </div>
               ))}
               {/* {editMode && additionalPhotos.length < 5 && (
-                <label className="h-24 w-24 flex items-center justify-center border-2 border-dashed rounded cursor-pointer">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleAdditionalPhotosChange}
-                    className="hidden"
-                  />
-                  <span className="text-gray-400">+</span>
-                </label>
-              )} */}
+      <label className="h-24 w-24 flex items-center justify-center border-2 border-dashed rounded cursor-pointer">
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleAdditionalPhotosChange}
+          className="hidden"
+        />
+        <span className="text-gray-400">+</span>
+      </label>
+    )} */}
             </div>
             {!editMode && additionalPhotos.length === 0 && (
               <span className="text-gray-500">

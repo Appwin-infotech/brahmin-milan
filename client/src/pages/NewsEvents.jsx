@@ -11,6 +11,7 @@ import {
 import Modal from "react-modal";
 import Pagination from "../components/common/Pagination";
 import PageHeader from "../components/common/PageHeader";
+import { getPhotoUrl } from "../utils/imageHelpers";
 
 const EventPostsTable = () => {
   const [allPosts, setAllPosts] = useState([]);
@@ -352,9 +353,13 @@ const EventPostsTable = () => {
                             {post.images.slice(0, 3).map((imgUrl, idx) => (
                               <img
                                 key={idx}
-                                src={IMAGE_URL + imgUrl}
+                                src={getPhotoUrl(imgUrl)}
                                 alt={`thumbnail-${idx}`}
                                 className="w-10 h-10 object-cover rounded-md"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = "/placeholder-image.png";
+                                }}
                               />
                             ))}
                             {post.images.length > 3 && (
@@ -445,14 +450,26 @@ const EventPostsTable = () => {
 
           {selectedPost.images?.length > 0 && (
             <div
-              className={`grid grid-cols-${selectedPost?.images?.length} sm:grid-cols-${selectedPost?.images?.length} md:grid-cols-${selectedPost?.images?.length} gap-4 mb-6`}
+              className={`grid gap-4 mb-6 ${
+                selectedPost.images.length === 1
+                  ? "grid-cols-1"
+                  : selectedPost.images.length === 2
+                  ? "grid-cols-2"
+                  : selectedPost.images.length === 3
+                  ? "grid-cols-3"
+                  : "grid-cols-4"
+              }`}
             >
               {selectedPost.images.map((imgUrl, idx) => (
                 <img
                   key={idx}
-                  src={IMAGE_URL + imgUrl}
+                  src={getPhotoUrl(imgUrl)}
                   alt={`event-img-${idx}`}
                   className="w-60 h-60 object-cover rounded-md shadow"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/placeholder-image.png";
+                  }}
                 />
               ))}
             </div>
@@ -512,9 +529,16 @@ const EventPostsTable = () => {
                     className="flex items-start space-x-3 bg-gray-50 p-3 rounded-md shadow-sm"
                   >
                     <img
-                      src={comment.user?.photoUrl?.[0] || "/no-user.png"}
+                      src={
+                        getPhotoUrl(comment.user?.photoUrl?.[0]) ||
+                        "/no-user.png"
+                      }
                       alt={comment.user?.username}
                       className="w-10 h-10 rounded-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "/no-user.png";
+                      }}
                     />
                     <div>
                       <p className="text-sm font-semibold">
@@ -551,15 +575,15 @@ const EventPostsTable = () => {
         <h2 className="text-xl font-bold mb-4">Edit Event Post</h2>
         <form onSubmit={handleUpdate}>
           {/* <label className="block mb-2 font-semibold">Title</label>
-          <input
-            type="text"
-            value={editForm.title}
-            onChange={(e) =>
-              setEditForm({ ...editForm, title: e.target.value })
-            }
-            className="w-full p-2 border rounded mb-3"
-            required
-          /> */}
+    <input
+      type="text"
+      value={editForm.title}
+      onChange={(e) =>
+        setEditForm({ ...editForm, title: e.target.value })
+      }
+      className="w-full p-2 border rounded mb-3"
+      required
+    /> */}
 
           <label className="block mb-2 font-semibold">Description</label>
           <textarea
@@ -586,9 +610,13 @@ const EventPostsTable = () => {
             {editForm.images.map((img, idx) => (
               <div key={idx} className="relative">
                 <img
-                  src={IMAGE_URL + img}
+                  src={getPhotoUrl(img)}
                   alt={`img-${idx}`}
                   className="w-16 h-16 object-cover rounded"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/placeholder-image.png";
+                  }}
                 />
                 <button
                   type="button"

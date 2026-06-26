@@ -2,10 +2,11 @@ import { AiFillPlusCircle, AiOutlineUserAdd } from "react-icons/ai";
 import { useState, useEffect } from "react";
 import { FaSpinner, FaTrash, FaTrashAlt, FaXing } from "react-icons/fa";
 import PageHeader from "../components/common/PageHeader";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants";
+import { BASE_URL, subCasteOptions } from "../utils/constants";
 import { toast, ToastContainer } from "react-toastify";
 import Pagination from "../components/common/Pagination";
 import { Link } from "react-router-dom";
+import { getPhotoUrl } from "../utils/imageHelpers";
 
 const DharamsalaPage = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -36,7 +37,6 @@ const DharamsalaPage = () => {
     const token = localStorage.getItem("authToken");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
-
 
   const headers = getAuthHeaders();
 
@@ -116,9 +116,10 @@ const DharamsalaPage = () => {
 
     // Search Filter
     if (query) {
-      filtered = filtered.filter((req) =>
-        req.dharmshalaName.toLowerCase().includes(query.toLowerCase()) ||
-        req.subCaste.toLowerCase().includes(query.toLowerCase())
+      filtered = filtered.filter(
+        (req) =>
+          req.dharmshalaName.toLowerCase().includes(query.toLowerCase()) ||
+          req.subCaste.toLowerCase().includes(query.toLowerCase())
       );
     }
 
@@ -172,12 +173,10 @@ const DharamsalaPage = () => {
     setImageFiles((prev) => [...prev, ...files]);
   };
 
-
   // Remove a specific image
   const handleRemoveImage = (indexToRemove) => {
     setImageFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
-
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -199,11 +198,14 @@ const DharamsalaPage = () => {
     });
 
     try {
-      const response = await fetch(`${BASE_URL}/api/v1/admin/create-DharmshalaByAdmin`, {
-        method: "POST",
-        headers: getAuthHeaders(), // DO NOT set Content-Type here
-        body: formData,
-      });
+      const response = await fetch(
+        `${BASE_URL}/api/v1/admin/create-DharmshalaByAdmin`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(), // DO NOT set Content-Type here
+          body: formData,
+        }
+      );
       const data = await response.json();
 
       if (!response.ok) {
@@ -229,7 +231,6 @@ const DharamsalaPage = () => {
     }
   };
 
-
   // Redirect to User Profile or Reported Profile
   const handleProfileClick = (currentPage) => {
     // Store the current page in localStorage
@@ -243,7 +244,6 @@ const DharamsalaPage = () => {
       localStorage.removeItem("dharmashalaCurrentPage"); // optional
     }
   }, []);
-
 
   if (loading)
     return (
@@ -438,7 +438,6 @@ const DharamsalaPage = () => {
                         </div>
                       );
                     })}
-
                   </div>
                 </div>
 
@@ -501,11 +500,7 @@ const DharamsalaPage = () => {
                       <Link
                         to={`/dharmshala/${req._id}`}
                         className="text-blue-500 hover:underline"
-                        onClick={() =>
-                          handleProfileClick(
-                            currentPage
-                          )
-                        }
+                        onClick={() => handleProfileClick(currentPage)}
                       >
                         {req.dharmshalaName}
                       </Link>
@@ -517,10 +512,14 @@ const DharamsalaPage = () => {
                       {req.images.map((img, index) => (
                         <img
                           key={index}
-                          src={IMAGE_URL + img}
+                          src={getPhotoUrl(img)}
                           alt="Preview"
                           className="min-w-12 h-12 object-cover rounded-md cursor-pointer"
                           onClick={() => setSelectedImage(img)}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "/placeholder-image.png";
+                          }}
                         />
                       ))}
                     </td>
@@ -561,9 +560,13 @@ const DharamsalaPage = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <img
-                src={IMAGE_URL + selectedImage}
+                src={getPhotoUrl(selectedImage)}
                 alt="Preview"
                 className="w-full h-auto max-h-96 object-contain"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "/placeholder-image.png";
+                }}
               />
             </div>
           </div>
