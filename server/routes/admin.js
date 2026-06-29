@@ -118,9 +118,9 @@ router.post("/updateActivist/:id", verifyAdminToken, controller.updateActivistAc
 router.patch(
   "/updateActivistByAdmin/:id",
   verifyAdminToken,
-  upload.fields([{ name: "profilePhoto", maxCount: 1 }]),
   controller.updateActivistProfileByAdmin
 );
+
 router.delete("/delete-Activist/:id", verifyAdminToken, controller.deleteActivistProfile);
 router.patch('/update-advertisementStatus/:id', verifyAdminToken, advertisementController.updateAdvertisementStatus);
 

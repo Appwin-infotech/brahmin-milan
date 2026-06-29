@@ -3,6 +3,7 @@ const Activist = require("../models/activist");
 const Dharmshala = require("../models/dharmshala");
 const Report = require("../models/report");
 const SavedProfile = require("../models/savedProfiles");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 //create dharmshala profile
 const createDharmshala = async (req, res) => {
@@ -55,11 +56,33 @@ const createDharmshala = async (req, res) => {
       });
     }
 
-    // Process uploaded images
+    // 🔹 Upload images to Cloudinary
+    const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+    if (files.length > 5) {
+      return res.status(400).json({
+        status: false,
+        message: "You can only upload a maximum of 5 images.",
+      });
+    }
+
     const imagesUrls = [];
-    for (const file of req.files.images) {
-      const imagePath = file.path.replace(/\\/g, "/"); // Handle path format
-      imagesUrls.push(imagePath);
+    for (let i = 0; i < files.length; i++) {
+      const upload = await uploadImageToCloudinary(
+        files[i],
+        process.env.FOLDER_NAME || "dharmshala",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Image upload failed.",
+        });
+      }
+
+      imagesUrls.push(upload.secure_url);
     }
 
     // Create new Dharmshala profile
@@ -116,44 +139,60 @@ const updateDharmshala = async (req, res) => {
 
     let imagesUrls = existingDharmshalaProfile.images || [];
 
-// Parse removeImages properly
-let removeImages = req.body.removeImages;
-if (typeof removeImages === 'string') {
-  try {
-    removeImages = JSON.parse(removeImages);
-  } catch (err) {
-    return res.status(400).json({
-      status: false,
-      message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
-    });
-  }
-}
-if (!Array.isArray(removeImages)) removeImages = [];
+    // Parse removeImages properly
+    let removeImages = req.body.removeImages;
+    if (typeof removeImages === 'string') {
+      try {
+        removeImages = JSON.parse(removeImages);
+      } catch (err) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
+        });
+      }
+    }
+    if (!Array.isArray(removeImages)) removeImages = [];
 
-// Remove specified images
-imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
+    // Remove specified images
+    imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
 
-// Handle newly uploaded images
-const newUploadedImages = [];
-if (req.files?.images) {
-  req.files.images.forEach((file) => {
-    newUploadedImages.push(file.path.replace(/\\/g, "/"));
-  });
-}
+    // 🔹 Handle newly uploaded images via Cloudinary
+    const newUploadedImages = [];
+    if (req.files?.images) {
+      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
 
-// Replace removed images with new ones
-while (removeImages.length > 0 && newUploadedImages.length > 0) {
-  imagesUrls.push(newUploadedImages.shift());
-  removeImages.shift();
-}
+      for (let i = 0; i < files.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          files[i],
+          process.env.FOLDER_NAME || "dharmshala",
+          1200,
+          600
+        );
 
-// Append remaining new images (limit total to 5)
-imagesUrls = [...imagesUrls, ...newUploadedImages];
-if (imagesUrls.length > 5) {
-  imagesUrls = imagesUrls.slice(-5);
-}
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Image upload failed.",
+          });
+        }
 
-dataForUpdate.images = imagesUrls;
+        newUploadedImages.push(upload.secure_url);
+      }
+    }
+
+    // Replace removed images with new ones
+    while (removeImages.length > 0 && newUploadedImages.length > 0) {
+      imagesUrls.push(newUploadedImages.shift());
+      removeImages.shift();
+    }
+
+    // Append remaining new images (limit total to 5)
+    imagesUrls = [...imagesUrls, ...newUploadedImages];
+    if (imagesUrls.length > 5) {
+      imagesUrls = imagesUrls.slice(-5);
+    }
+
+    dataForUpdate.images = imagesUrls;
 
     const updatedDharmshala = await Dharmshala.findByIdAndUpdate(
       dharmshalaId,
@@ -177,8 +216,6 @@ dataForUpdate.images = imagesUrls;
     return res.status(500).json({ status: false, message: err.message });
   }
 };
-
-
 
 //view Activist Profile
 const viewDharmshala = async (req, res) => {
@@ -272,9 +309,9 @@ const getDharmshalaById = async (req, res) => {
   try {
 
     const userId = req?.user?._id || req?.admin?._id;
-    
-    const {dharmshalaId} = req.params;
-  
+
+    const { dharmshalaId } = req.params;
+
     // Validate ID
     if (!mongoose.Types.ObjectId.isValid(dharmshalaId)) {
       return res.status(400).json({ status: false, message: "Invalid ID" });

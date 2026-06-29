@@ -11,6 +11,7 @@ const SavedProfile = require("../models/savedProfiles");
 const Admin = require("../models/admin");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
 const Notification = require("../models/notification");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 const createActivistProfileRequest = async (req, res) => {
   try {
@@ -42,10 +43,22 @@ const createActivistProfileRequest = async (req, res) => {
     }
 
     // Validate that profilePhoto file is present
-    if (!req.files?.profilePhoto || req.files.profilePhoto.length === 0) {
+    if (!req.files?.profilePhoto) {
       return res.status(400).json({
         status: false,
         message: "Profile Photo is required!",
+      });
+    }
+
+    // 🔹 Enforce exactly 1 profile photo
+    const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+      ? req.files.profilePhoto
+      : [req.files.profilePhoto];
+
+    if (profilePhotoFiles.length > 1) {
+      return res.status(400).json({
+        status: false,
+        message: "Only 1 profile photo is allowed.",
       });
     }
 
@@ -121,11 +134,22 @@ const createActivistProfileRequest = async (req, res) => {
       });
     }
 
-    // Handle profilePhoto upload via req.files
-    let photoUrlPath = null;
-    if (req.files?.profilePhoto && req.files.profilePhoto.length > 0) {
-      photoUrlPath = req.files.profilePhoto[0].path.replace(/\\/g, "/");
+    // 🔹 Handle profilePhoto upload via Cloudinary
+    const upload = await uploadImageToCloudinary(
+      profilePhotoFiles[0],
+      process.env.FOLDER_NAME || "activist",
+      1200,
+      600
+    );
+
+    if (!upload?.secure_url) {
+      return res.status(500).json({
+        status: false,
+        message: "Image upload failed.",
+      });
     }
+
+    const photoUrlPath = upload.secure_url;
 
     // Create new ActivistRequest object
     const newActivistRequest = new ActivistRequest({
@@ -185,73 +209,121 @@ const createActivistProfileRequest = async (req, res) => {
   }
 };
 
-// //verify metrimonial Profile
-// const verifyMetrimonialProfile = async (req, res) => {
-//   try {
-//     const { _id: userId } = req.user;
-//     const { bioDataId } = req.params;
+//update Activist profile
+const updateActivistProfile = async (req, res) => {
+  try {
 
-//     // Check if the user is a valid activist
-//     const validActivist = await Activist.findOne({ userId: userId });
+    const userId = req?.user?._id;
+    const dataForUpdate = req.body;
+    const { knownActivistId, dob } = dataForUpdate;
 
-//     const activistId = validActivist?._id;
+    // Ensure there is at least some data to update or a file
+    if (Object.keys(dataForUpdate).length === 0 && !req.files?.profilePhoto) {
+      return res.status(400).json({
+        status: false,
+        message: "No data provided for updating the profile!",
+      });
+    }
 
-//     if (!validActivist) {
-//       return res.status(400).json({
-//         status: false,
-//         message: "Invalid Action! Please first create Activist Profile!",
-//       });
-//     }
+    // Validate mobile number format
+    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
+      return res.status(400).json({
+        status: false,
+        message:
+          "Invalid mobile number. Please enter a valid 10-digit mobile number.",
+      });
+    }
 
-//     // Check if the matrimonial profile exists
-//     const matrimonialProfile = await Biodata.findOne({ bioDataId });
+    // Validate knownActivistId format
+    if (knownActivistId) {
+      const regex = /^[A-Z]{2}[0-9]{4}$/;
+      if (!regex.test(knownActivistId)) {
+        return res.status(400).json({
+          status: false,
+          message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001' to 'ZZ9999'.`,
+        });
+      }
 
-//     if (!matrimonialProfile) {
-//       return res
-//         .status(400)
-//         .json({ status: false, message: "Matrimonial Profile Not Found!" });
-//     }
+      const isValidknownActivist = await Activist.findOne({ activistId: knownActivistId });
+      if (!isValidknownActivist) {
+        return res.status(400).json({ status: false, message: "Invalid KnownActivistId! Activist not Found!" });
+      }
+    }
 
-//     // Check if the current activist is the one who verified the profile
-//     if (
-//       matrimonialProfile.verified === true &&
-//       matrimonialProfile.verifiedBy.toString() !== activistId.toString()
-//     ) {
-//       return res.status(400).json({
-//         status: false,
-//         message:
-//           "Only the activist who verified the profile can disapprove it!",
-//       });
-//     }
+    // Parse DOB if provided
+    if (dob) {
+      const parsedDob = moment(dob, "DD/MM/YYYY", true);
+      if (!parsedDob.isValid()) {
+        return res.status(400).json({
+          status: false,
+          message:
+            "Invalid date format for 'dob'. Expected format is DD/MM/YYYY.",
+        });
+      }
+      dataForUpdate.dob = parsedDob.toDate();
+    }
 
-//     // Update the profile field
-//     if (matrimonialProfile.verified === false) {
-//       matrimonialProfile.verified = true;
-//       matrimonialProfile.verifiedBy = validActivist._id; // Save the activist who verified the profile
-//       // Save the updated profile
-//       await matrimonialProfile.save();
-//       return res.status(200).json({
-//         status: true,
-//         message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
-//           } by ${validActivist.fullname}!`,
-//       });
-//     }
+    // Check if activist profile exists
+    const existingActivist = await Activist.findOne({ userId });
+    if (!existingActivist) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid request! Activist profile not found!",
+      });
+    }
 
-//     if (matrimonialProfile.verified === true) {
-//       matrimonialProfile.verified = false;
-//       matrimonialProfile.verifiedBy = null; // Remove the activist reference if disapproved
-//       // Save the updated profile
-//       await matrimonialProfile.save();
-//       return res.status(200).json({
-//         status: true,
-//         message: `Matrimonial Profile ${matrimonialProfile.verified ? "verified" : "disapproved"
-//           } by ${validActivist.fullname}!`,
-//       });
-//     }
-//   } catch (err) {
-//     res.status(500).json({ status: false, message: err.message });
-//   }
-// };
+    // 🔹 Handle profilePhoto upload via Cloudinary (optional, but max 1 if provided)
+    if (req.files?.profilePhoto) {
+      const files = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (files.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        files[0],
+        process.env.FOLDER_NAME || "activist",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Image upload failed.",
+        });
+      }
+
+      dataForUpdate.profilePhoto = upload.secure_url;
+    }
+
+    // Perform the update
+    const updatedActivist = await Activist.updateOne(
+      { userId },
+      { $set: dataForUpdate }
+    );
+
+    if (updatedActivist.modifiedCount === 0) {
+      return res.status(400).json({
+        status: false,
+        message: "No changes were made to the profile.",
+      });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "Activist profile updated successfully.",
+    });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
 
 const verifyMetrimonialProfile = async (req, res) => {
   try {
@@ -329,97 +401,6 @@ const verifyMetrimonialProfile = async (req, res) => {
         message: `Matrimonial Profile disapproved by ${verifierName}!`,
       });
     }
-  } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
-  }
-};
-
-//update Activist profile
-const updateActivistProfile = async (req, res) => {
-  try {
-
-    const userId = req?.user?._id;
-    const dataForUpdate = req.body;
-    const { knownActivistId, dob } = dataForUpdate;
-
-    // Ensure there is at least some data to update or a file
-    if (Object.keys(dataForUpdate).length === 0 && !req.files?.profilePhoto) {
-      return res.status(400).json({
-        status: false,
-        message: "No data provided for updating the profile!",
-      });
-    }
-
-    // Validate mobile number format
-    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-    if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
-      return res.status(400).json({
-        status: false,
-        message:
-          "Invalid mobile number. Please enter a valid 10-digit mobile number.",
-      });
-    }
-
-    // Validate knownActivistId format
-    if (knownActivistId) {
-      const regex = /^[A-Z]{2}[0-9]{4}$/;
-      if (!regex.test(knownActivistId)) {
-        return res.status(400).json({
-          status: false,
-          message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001' to 'ZZ9999'.`,
-        });
-      }
-
-      const isValidknownActivist = await Activist.findOne({ activistId: knownActivistId });
-      if (!isValidknownActivist) {
-        return res.status(400).json({ status: false, message: "Invalid KnownActivistId! Activist not Found!" });
-      }
-    }
-
-    // Parse DOB if provided
-    if (dob) {
-      const parsedDob = moment(dob, "DD/MM/YYYY", true);
-      if (!parsedDob.isValid()) {
-        return res.status(400).json({
-          status: false,
-          message:
-            "Invalid date format for 'dob'. Expected format is DD/MM/YYYY.",
-        });
-      }
-      dataForUpdate.dob = parsedDob.toDate();
-    }
-
-    // Check if activist profile exists
-    const existingActivist = await Activist.findOne({ userId });
-    if (!existingActivist) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid request! Activist profile not found!",
-      });
-    }
-
-    // Handle file upload for profilePhoto
-    if (req.files?.profilePhoto && req.files.profilePhoto.length > 0) {
-      dataForUpdate.profilePhoto = req.files.profilePhoto[0].path.replace(/\\/g, "/");
-    }
-
-    // Perform the update
-    const updatedActivist = await Activist.updateOne(
-      { userId },
-      { $set: dataForUpdate }
-    );
-
-    if (updatedActivist.modifiedCount === 0) {
-      return res.status(400).json({
-        status: false,
-        message: "No changes were made to the profile.",
-      });
-    }
-
-    return res.status(200).json({
-      status: true,
-      message: "Activist profile updated successfully.",
-    });
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
   }

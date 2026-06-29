@@ -3303,9 +3303,34 @@ const updateActivistProfileByAdmin = async (req, res) => {
       });
     }
 
-    // Handle file upload for profilePhoto
-    if (req.files?.profilePhoto && req.files.profilePhoto.length > 0) {
-      dataForUpdate.profilePhoto = req.files.profilePhoto[0].path.replace(/\\/g, "/");
+    // 🔹 Handle profilePhoto upload via Cloudinary (optional, but max 1 if provided)
+    if (req.files?.profilePhoto) {
+      const files = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (files.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        files[0],
+        process.env.FOLDER_NAME || "activist",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Image upload failed.",
+        });
+      }
+
+      dataForUpdate.profilePhoto = upload.secure_url;
     }
 
     // Perform the update and return updated document
