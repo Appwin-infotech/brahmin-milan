@@ -7,6 +7,7 @@ const User = require("../models/user");
 const Admin = require("../models/admin");
 const Notification = require("../models/notification");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 const createJyotishProfile = async (req, res) => {
   try {
@@ -33,20 +34,20 @@ const createJyotishProfile = async (req, res) => {
     }
 
     // Convert jyotishServices from string to array if needed
-let jyotishServicesArray = jyotishServices;
-if (typeof jyotishServices === "string") {
-  try {
-    jyotishServicesArray = JSON.parse(jyotishServices);
-    if (!Array.isArray(jyotishServicesArray)) {
-      throw new Error();
+    let jyotishServicesArray = jyotishServices;
+    if (typeof jyotishServices === "string") {
+      try {
+        jyotishServicesArray = JSON.parse(jyotishServices);
+        if (!Array.isArray(jyotishServicesArray)) {
+          throw new Error();
+        }
+      } catch {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid format for jyotishServices. It should be a JSON array of strings.",
+        });
+      }
     }
-  } catch {
-    return res.status(400).json({
-      status: false,
-      message: "Invalid format for jyotishServices. It should be a JSON array of strings.",
-    });
-  }
-}
 
     // ✅ Validate mobile number
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
@@ -99,18 +100,68 @@ if (typeof jyotishServices === "string") {
       });
     }
 
-    // ✅ Upload profile photo from req.files
+    // 🔹 Validate profilePhoto - max 1
     let photoUrlPath = null;
-    if (req.files?.profilePhoto && req.files.profilePhoto.length > 0) {
-      photoUrlPath = `uploads/${req.files.profilePhoto[0].filename}`;
+    if (req.files?.profilePhoto) {
+      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (profilePhotoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        profilePhotoFiles[0],
+        process.env.FOLDER_NAME || "jyotish",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Profile photo upload failed.",
+        });
+      }
+
+      photoUrlPath = upload.secure_url;
     }
 
-    // ✅ Upload additional photos from req.files
+    // 🔹 Validate additionalPhotos - max 5
     const additionalPhotosUrls = [];
-    if (req.files?.additionalPhotos && req.files.additionalPhotos.length > 0) {
-      req.files.additionalPhotos.forEach((file) => {
-        additionalPhotosUrls.push(`uploads/${file.filename}`);
-      });
+    if (req.files?.additionalPhotos) {
+      const additionalFiles = Array.isArray(req.files.additionalPhotos)
+        ? req.files.additionalPhotos
+        : [req.files.additionalPhotos];
+
+      if (additionalFiles.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      for (let i = 0; i < additionalFiles.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          additionalFiles[i],
+          process.env.FOLDER_NAME || "jyotish",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Additional photo upload failed.",
+          });
+        }
+
+        additionalPhotosUrls.push(upload.secure_url);
+      }
     }
 
     // ✅ Create Jyotish Profile
@@ -124,7 +175,7 @@ if (typeof jyotishServices === "string") {
       city,
       experience,
       description,
-      jyotishServices:jyotishServicesArray,
+      jyotishServices: jyotishServicesArray,
       profilePhoto: photoUrlPath,
       additionalPhotos: additionalPhotosUrls,
       ...otherData,
@@ -187,7 +238,7 @@ const updateJyotishProfile = async (req, res) => {
     const userId = req?.user?._id;
 
     const dataForUpdate = req?.body;
-  
+
     if (!dataForUpdate) {
       return res
         .status(400)
@@ -197,7 +248,7 @@ const updateJyotishProfile = async (req, res) => {
         });
     }
 
-            // Validate mobile number format
+    // Validate mobile number format
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
       return res.status(400).json({
@@ -207,7 +258,7 @@ const updateJyotishProfile = async (req, res) => {
       });
     }
 
-        // Handle jyotishServices if sent as JSON string
+    // Handle jyotishServices if sent as JSON string
     if (dataForUpdate.jyotishServices && typeof dataForUpdate.jyotishServices === "string") {
       try {
         dataForUpdate.jyotishServices = JSON.parse(dataForUpdate.jyotishServices);
@@ -222,15 +273,69 @@ const updateJyotishProfile = async (req, res) => {
       }
     }
 
-       // Handle file uploads using Multer
+    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
     if (req.files?.profilePhoto) {
-      dataForUpdate.profilePhoto = `uploads/${req.files.profilePhoto[0].filename}`;
+      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (profilePhotoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        profilePhotoFiles[0],
+        process.env.FOLDER_NAME || "jyotish",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Profile photo upload failed.",
+        });
+      }
+
+      dataForUpdate.profilePhoto = upload.secure_url;
     }
 
+    // 🔹 Handle additionalPhotos upload via Cloudinary - max 5
     if (req.files?.additionalPhotos) {
-      dataForUpdate.additionalPhotos = req.files.additionalPhotos.map(
-        (file) => `uploads/${file.filename}`
-      );
+      const additionalFiles = Array.isArray(req.files.additionalPhotos)
+        ? req.files.additionalPhotos
+        : [req.files.additionalPhotos];
+
+      if (additionalFiles.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      const additionalPhotosUrls = [];
+      for (let i = 0; i < additionalFiles.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          additionalFiles[i],
+          process.env.FOLDER_NAME || "jyotish",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Additional photo upload failed.",
+          });
+        }
+
+        additionalPhotosUrls.push(upload.secure_url);
+      }
+
+      dataForUpdate.additionalPhotos = additionalPhotosUrls;
     }
 
     //check if JyotishRequest profile exists
@@ -265,7 +370,7 @@ const updateJyotishProfile = async (req, res) => {
       data: updatedJyotish,
     });
   } catch (err) {
-    res.status(500).json({ status: false, message: err });
+    res.status(500).json({ status: false, message: err.message });
   }
 };
 

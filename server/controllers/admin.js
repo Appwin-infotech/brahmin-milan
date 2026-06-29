@@ -1526,22 +1526,22 @@ const specialistController = async (req, res) => {
     const { model, field } = models[userType];
     if (action === "toggleAccessWithSubscription" && userId) {
       const { startDate, endDate, serviceType } = req.body;
-    
+
       const user = await model.findById(userId);
       if (!user) {
         return res.status(400).json({ status: false, message: "User not found" });
       }
-    
+
       const newIsEnabled = !user.isEnabled;
       user.isEnabled = newIsEnabled;
       await user.save({ validateBeforeSave: false });
-    
+
       const linkedUser = await User.findById(user.userId);
       if (linkedUser && serviceType) {
         const existingSubIndex = linkedUser.serviceSubscriptions.findIndex(
           (sub) => sub.serviceType === serviceType
         );
-    
+
         if (newIsEnabled && startDate && endDate) {
           const subData = {
             serviceType,
@@ -1562,16 +1562,16 @@ const specialistController = async (req, res) => {
           linkedUser.serviceSubscriptions[existingSubIndex].status = "Expired";
           linkedUser.serviceSubscriptions[existingSubIndex].endDate = new Date();
         }
-    
+
         await linkedUser.save();
       }
-    
+
       return res.status(200).json({
         status: true,
         message: `Access ${newIsEnabled ? "enabled" : "disabled"} successfully`,
       });
     }
-    
+
     if (action === "toggleAccess" && userId) {
       const user = await model.findById(userId);
       if (!user) {
@@ -2355,17 +2355,41 @@ const dharmshalaByAdmin = async (req, res) => {
       });
     }
 
-    // Validate images uploaded via multer
-    if (!req.files?.images || req.files.images.length === 0) {
+    // Validate images uploaded
+    if (!req.files?.images) {
       return res
         .status(400)
         .json({ status: false, message: "At least one image is required!" });
     }
 
-    // Collect file paths from multer
-    const imageUrls = req.files.images.map(file =>
-      file.path.replace(/\\/g, "/")
-    );
+    // 🔹 Upload images to Cloudinary (max 4)
+    const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+    if (files.length > 4) {
+      return res.status(400).json({
+        status: false,
+        message: "You can only upload a maximum of 4 images.",
+      });
+    }
+
+    const imageUrls = [];
+    for (let i = 0; i < files.length; i++) {
+      const upload = await uploadImageToCloudinary(
+        files[i],
+        process.env.FOLDER_NAME || "dharmshala",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Image upload failed.",
+        });
+      }
+
+      imageUrls.push(upload.secure_url);
+    }
 
     // Fetch activist profile by activistId
     const activistProfile = await Activist.findOne({ activistId });
@@ -2386,7 +2410,7 @@ const dharmshalaByAdmin = async (req, res) => {
       subCaste,
       city,
       description,
-      images: imageUrls, // Store file paths array
+      images: imageUrls, // Store Cloudinary URLs array
       mobileNo,
     });
 
@@ -2862,18 +2886,34 @@ const updateDharmshalaById = async (req, res) => {
     // Remove images specified in removeImages array
     imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
 
-    // Process newly uploaded images via multer (req.files.images)
+    // 🔹 Process newly uploaded images via Cloudinary (max 4 total)
     const newUploadedImages = [];
     if (req.files?.images) {
-      req.files.images.forEach(file => {
-        newUploadedImages.push(file.path.replace(/\\/g, "/"));
-      });
+      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+      for (let i = 0; i < files.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          files[i],
+          process.env.FOLDER_NAME || "dharmshala",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Image upload failed.",
+          });
+        }
+
+        newUploadedImages.push(upload.secure_url);
+      }
     }
 
-    // Merge new images with old, maintaining limit 5
+    // Merge new images with old, maintaining limit 4
     imagesUrls = [...imagesUrls, ...newUploadedImages];
-    if (imagesUrls.length > 5) {
-      imagesUrls = imagesUrls.slice(imagesUrls.length - 5);
+    if (imagesUrls.length > 4) {
+      imagesUrls = imagesUrls.slice(imagesUrls.length - 4);
     }
 
     updateData.images = imagesUrls;

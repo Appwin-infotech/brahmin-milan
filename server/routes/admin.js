@@ -63,14 +63,12 @@ router.delete("/deleteCommiteeByAdmin/:committeeId", verifyAdminToken, controlle
 router.post(
   "/create-DharmshalaByAdmin",
   verifyAdminToken,
-  upload.fields([{ name: "images", maxCount: 4 }]),
   controller.dharmshalaByAdmin
 );
 // Dharmshala update: images (multiple files)
 router.patch(
   "/updateDharmshala/:id",
   verifyAdminToken,
-  upload.fields([{ name: "images", maxCount: 4 }]),
   controller.updateDharmshalaById
 );
 router.get('/getDharmshalaById/:id', verifyAdminToken, controller.getDharmshalaById);

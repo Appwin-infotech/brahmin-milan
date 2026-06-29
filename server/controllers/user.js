@@ -29,6 +29,7 @@ const Notification = require("../models/notification");
 const SuccessStory = require("../models/successStory");
 const SuccessStoryRequest = require("../models/successStoryRequest");
 const { BASE_URL } = require("../utils/constants");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 //require data fields
 const USER_SAFE_DATA = "username dob mobileNo gender city";
 // sign up user
@@ -1745,9 +1746,35 @@ const updateServiceProfiles = async (req, res) => {
       });
     }
 
+    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
     let profilePhotoUrl = null;
-    if (req.files?.profilePhoto?.[0]) {
-      profilePhotoUrl = req.files.profilePhoto[0].path.replace(/\\/g, "/");
+    if (req.files?.profilePhoto) {
+      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (profilePhotoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        profilePhotoFiles[0],
+        process.env.FOLDER_NAME || profileType.toLowerCase(),
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Profile photo upload failed.",
+        });
+      }
+
+      profilePhotoUrl = upload.secure_url;
     }
 
     let additionalPhotosUrls = existingProfile.additionalPhotos || [];
@@ -1774,11 +1801,29 @@ const updateServiceProfiles = async (req, res) => {
       (imgUrl) => !removeImages.includes(imgUrl)
     );
 
-    // Append newly uploaded images
+    // 🔹 Upload newly added additionalPhotos via Cloudinary
     if (req.files?.additionalPhotos) {
-      req.files.additionalPhotos.forEach((file) => {
-        additionalPhotosUrls.push(file.path.replace(/\\/g, "/"));
-      });
+      const additionalFiles = Array.isArray(req.files.additionalPhotos)
+        ? req.files.additionalPhotos
+        : [req.files.additionalPhotos];
+
+      for (let i = 0; i < additionalFiles.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          additionalFiles[i],
+          process.env.FOLDER_NAME || profileType.toLowerCase(),
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Additional photo upload failed.",
+          });
+        }
+
+        additionalPhotosUrls.push(upload.secure_url);
+      }
     }
 
     // Ensure only the last 5 images are kept

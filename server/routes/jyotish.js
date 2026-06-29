@@ -8,20 +8,12 @@ const router=Router();
 router.post(
   '/createJyotish',
   verifyToken,
-  upload.fields([
-    { name: 'profilePhoto', maxCount: 1 },
-    { name: 'additionalPhotos', maxCount: 5 }
-  ]),
   controller.createJyotishProfile
 );
 
 router.patch(
   '/update-jyotishProfile',
   verifyToken,
-  upload.fields([
-    { name: 'profilePhoto', maxCount: 1 },
-    { name: 'additionalPhotos', maxCount: 5 }
-  ]),
   controller.updateJyotishProfile
 );
 router.get("/jyotishProfileData/:id",verifyToken,controller.getJyotishProfileById);

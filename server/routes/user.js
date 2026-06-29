@@ -29,10 +29,6 @@ router.get('/profiles/:profileType', verifyToken, controller.fetchUserProfile);
 router.patch(
   "/update-serviceProfile/:profileType",
   verifyToken,
-  upload.fields([
-    { name: "profilePhoto", maxCount: 1 },
-    { name: "additionalPhotos", maxCount: 5 },
-  ]),
   controller.updateServiceProfiles
 );
 router.get('/getMetrimonial-Summary', verifyToken, controller.getMetrimonialSummary);
@@ -43,7 +39,6 @@ router.get('/get-successStories', verifyToken, successStoryController.getSuccess
 router.post(
   '/create-successStory',
   verifyToken,
-  upload.fields([{ name: 'photoUrl', maxCount: 1 }]),
   successStoryController.createSuccessStory
 );
 router.delete('/delete-successStory/:id', verifyToken, successStoryController.deleteSuccessStory);

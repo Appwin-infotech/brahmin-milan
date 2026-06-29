@@ -9,6 +9,8 @@ const ConnectionRequest = require("../models/connectionRequest");
 
 const cloudinary = require("cloudinary").v2;
 
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
+
 const createSuccessStory = async (req, res) => {
   try {
     const { _id: userId } = req.user;
@@ -143,10 +145,35 @@ const createSuccessStory = async (req, res) => {
       });
     }
 
-    // ✅ Multer: Handle uploaded photo file
+    // 🔹 Handle photoUrl upload via Cloudinary - optional, max 1
     let photoUrlPath = null;
-    if (req.files?.photoUrl?.[0]) {
-      photoUrlPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+    if (req.files?.photoUrl) {
+      const photoFiles = Array.isArray(req.files.photoUrl)
+        ? req.files.photoUrl
+        : [req.files.photoUrl];
+
+      if (photoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        photoFiles[0],
+        process.env.FOLDER_NAME || "successStory",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Photo upload failed.",
+        });
+      }
+
+      photoUrlPath = upload.secure_url;
     }
 
     const groomDetails = {

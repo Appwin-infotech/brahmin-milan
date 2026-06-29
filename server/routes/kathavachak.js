@@ -9,10 +9,6 @@ const router=Router();
 router.post(
   '/createKathavachak',
   verifyToken,
-  upload.fields([
-    { name: 'profilePhoto', maxCount: 1 },
-    { name: 'additionalPhotos', maxCount: 10 }
-  ]),
   controller.createKathavachakProfile
 );
 
@@ -20,10 +16,6 @@ router.post(
 router.patch(
   '/update-kathavachakProfile',
   verifyToken,
-  upload.fields([
-    { name: 'profilePhoto', maxCount: 1 },
-    { name: 'additionalPhotos', maxCount: 10 }
-  ]),
   controller.updateKathavachakProfile
 );
 
