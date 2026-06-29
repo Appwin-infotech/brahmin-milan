@@ -289,8 +289,12 @@ const viewEventPost = async (req, res) => {
 
 const updateEventPost = async (req, res) => {
   try {
+    console.log("Request Body:");
     const userId = req?.user?._id;
+    console.log("User ID:", userId);
     const dataForUpdate = req?.body;
+    console.log("Data for Update:", dataForUpdate);
+
     const { postId } = dataForUpdate;
 
     if (!postId) {

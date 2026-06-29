@@ -102,13 +102,14 @@ router.delete('/deleteDharmshala/:id', verifyAdminToken, controller.deleteDharms
 router.get('/get-successStories', verifyAdminToken, successStoryController.getSuccessStories);
 router.patch('/editSuccessStory/:id', verifyAdminToken, successStoryController.editSuccessStory);
 router.delete('/delete-successStory/:id', verifyAdminToken, successStoryController.deleteSuccessStory);
+
 router.delete("/delete-eventPost/:postId", verifyAdminToken, controller.deleteEventPostById);
 router.patch(
   "/updateEventPostByAdmin/:postId",
   verifyAdminToken,
-  upload.fields([{ name: "images", maxCount: 5 }]),
   controller.updateEventPostByAdmin
 );
+
 router.get("/getAllNotificationsForAdmin", verifyAdminToken, controller.getAllNotificationsForAdmin);
 //Activist 
 router.get("/getActivistById/:id", verifyAdminToken, controller.getActivistProfileById);

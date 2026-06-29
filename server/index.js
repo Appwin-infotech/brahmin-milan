@@ -1,12 +1,18 @@
-const dotenv = require("dotenv");
-dotenv.config(); 
 const express = require("express");
-const database = require("./config/database");
-const cookieParser = require("cookie-parser");
 const cors = require("cors");
-require('./config/subscriptionChecker');
-const { cloudinaryConnect } = require("./config/cloudinary");
+
+const dotenv = require("dotenv");
+const bodyParser = require("body-parser");
 const fileUpload = require("express-fileupload");
+
+const database = require("./config/database");
+const { cloudinaryConnect } = require("./config/cloudinary");
+
+const { initializeSocket } = require("./socket/socket.server")
+
+dotenv.config();
+const cookieParser = require("cookie-parser");
+require('./config/subscriptionChecker');
 const userRoute = require('./routes/user')
 const panditRoute = require("./routes/pandit")
 const kathavachakRoute = require("./routes/kathavachak")
@@ -26,10 +32,7 @@ const deeplinkRoutes = require("./routes/deeplinkRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const notificationRouter = require("./routes/notification");
 const PORT = process.env.PORT || 5000;
-const bodyParser = require("body-parser");
 const { createServer } = require("http");
-const { initializeSocket } = require("./socket/socket.server")
-const multer = require('multer');
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,12 +73,12 @@ app.use(
 //initializeSocket 
 initializeSocket(httpServer);
 
-// app.use(
-//   fileUpload({
-//     useTempFiles: true,
-//     tempFileDir: "/tmp/",
-//   })
-// );
+app.use(
+  fileUpload({
+    useTempFiles: true,
+    tempFileDir: "/tmp/",
+  })
+);
 
 cloudinaryConnect();
 
@@ -110,17 +113,6 @@ app.get("/", (req, res) => {
     message: "Your server is up and running...",
   });
 });
-
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err.message.includes("Invalid file type")) {
-    return res.status(400).json({
-      status: false,
-      message: err.message,
-    });
-  }
-  next(err); // Pass to other error handlers if needed
-});
-
 
 httpServer.listen(PORT, () => {
   console.log(`App is listening at http://localhost:${PORT}`);

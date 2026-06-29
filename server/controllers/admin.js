@@ -32,6 +32,7 @@ const cloudinary = require("cloudinary").v2;
 const { generateOTP, sendOTP } = require("../utils/otpService");
 const moment = require("moment");
 const { default: mongoose } = require("mongoose");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 // Create First Super Admin (Temporary Open Route)
 const createFirstAdmin = async (req, res) => {
@@ -2972,11 +2973,27 @@ const updateEventPostByAdmin = async (req, res) => {
       );
     }
 
+    // 🔹 Handle newly uploaded images via Cloudinary
     if (req.files?.images) {
-      req.files.images.forEach((file) => {
-        const filePath = file.path.replace(/\\/g, "/");
-        imagesUrls.push(filePath);
-      });
+      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+      for (let i = 0; i < files.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          files[i],
+          process.env.FOLDER_NAME || "eventPosts",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Image upload failed.",
+          });
+        }
+
+        imagesUrls.push(upload.secure_url);
+      }
     }
 
     if (imagesUrls.length > 5) {
@@ -3000,8 +3017,6 @@ const updateEventPostByAdmin = async (req, res) => {
     res.status(500).json({ status: false, message: err.message });
   }
 };
-
-
 
 const deleteEventPostById = async (req, res) => {
   try {
