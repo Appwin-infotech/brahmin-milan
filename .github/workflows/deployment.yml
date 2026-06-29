@@ -21,19 +21,6 @@ jobs:
         uses: actions/checkout@v3
 
       # ------------------------------
-      # ENSURE UPLOADS PERSIST
-      # ------------------------------
-      - name: Ensure uploads symlink exists
-        run: |
-          mkdir -p /var/www/uploads
-          rm -rf ./server/uploads
-          ln -s /var/www/uploads ./server/uploads
-
-      - name: Verify uploads symlink
-        run: |
-          ls -l ./server | grep uploads
-
-      # ------------------------------
       # NODE SETUP
       # ------------------------------
       - name: Use Node.js ${{ matrix.node-version }}
