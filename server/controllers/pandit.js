@@ -7,7 +7,7 @@ const User = require("../models/user");
 const Notification = require("../models/notification");
 const Admin = require("../models/admin");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
-
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 const createPanditProfile = async (req, res) => {
   try {
@@ -32,23 +32,21 @@ const createPanditProfile = async (req, res) => {
       });
     }
 
-
-// Convert panditServices from string to array if needed
-let panditServicesArray = panditServices;
-if (typeof panditServices === "string") {
-  try {
-    panditServicesArray = JSON.parse(panditServices);
-    if (!Array.isArray(panditServicesArray)) {
-      throw new Error();
+    // Convert panditServices from string to array if needed
+    let panditServicesArray = panditServices;
+    if (typeof panditServices === "string") {
+      try {
+        panditServicesArray = JSON.parse(panditServices);
+        if (!Array.isArray(panditServicesArray)) {
+          throw new Error();
+        }
+      } catch {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid format for panditServices. It should be a JSON array of strings.",
+        });
+      }
     }
-  } catch {
-    return res.status(400).json({
-      status: false,
-      message: "Invalid format for panditServices. It should be a JSON array of strings.",
-    });
-  }
-}
-
 
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (!mobileRegex.test(mobileNo)) {
@@ -97,17 +95,68 @@ if (typeof panditServices === "string") {
       });
     }
 
-    // ✅ Handle file uploads
+    // 🔹 Validate profilePhoto - max 1
     let photoUrlPath = null;
-    if (req.files?.profilePhoto?.[0]) {
-      photoUrlPath = req.files.profilePhoto[0].path.replace(/\\/g, "/");
+    if (req.files?.profilePhoto) {
+      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (profilePhotoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        profilePhotoFiles[0],
+        process.env.FOLDER_NAME || "pandit",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Profile photo upload failed.",
+        });
+      }
+
+      photoUrlPath = upload.secure_url;
     }
 
+    // 🔹 Validate additionalPhotos - max 5
     const additionalPhotosUrls = [];
     if (req.files?.additionalPhotos) {
-      req.files.additionalPhotos.forEach((file) => {
-        additionalPhotosUrls.push(file.path.replace(/\\/g, "/"));
-      });
+      const additionalFiles = Array.isArray(req.files.additionalPhotos)
+        ? req.files.additionalPhotos
+        : [req.files.additionalPhotos];
+
+      if (additionalFiles.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      for (let i = 0; i < additionalFiles.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          additionalFiles[i],
+          process.env.FOLDER_NAME || "pandit",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Additional photo upload failed.",
+          });
+        }
+
+        additionalPhotosUrls.push(upload.secure_url);
+      }
     }
 
     const newPandit = new Pandit({
@@ -119,7 +168,7 @@ if (typeof panditServices === "string") {
       state,
       city,
       experience,
-      panditServices:panditServicesArray,
+      panditServices: panditServicesArray,
       description,
       profilePhoto: photoUrlPath,
       additionalPhotos: additionalPhotosUrls,
@@ -210,15 +259,69 @@ const updatePanditProfile = async (req, res) => {
       });
     }
 
-    // Handle file uploads using Multer
+    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
     if (req.files?.profilePhoto) {
-      dataForUpdate.profilePhoto = `uploads/${req.files.profilePhoto[0].filename}`;
+      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
+        ? req.files.profilePhoto
+        : [req.files.profilePhoto];
+
+      if (profilePhotoFiles.length > 1) {
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      const upload = await uploadImageToCloudinary(
+        profilePhotoFiles[0],
+        process.env.FOLDER_NAME || "pandit",
+        1200,
+        600
+      );
+
+      if (!upload?.secure_url) {
+        return res.status(500).json({
+          status: false,
+          message: "Profile photo upload failed.",
+        });
+      }
+
+      dataForUpdate.profilePhoto = upload.secure_url;
     }
 
+    // 🔹 Handle additionalPhotos upload via Cloudinary - max 5
     if (req.files?.additionalPhotos) {
-      dataForUpdate.additionalPhotos = req.files.additionalPhotos.map(
-        (file) => `uploads/${file.filename}`
-      );
+      const additionalFiles = Array.isArray(req.files.additionalPhotos)
+        ? req.files.additionalPhotos
+        : [req.files.additionalPhotos];
+
+      if (additionalFiles.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      const additionalPhotosUrls = [];
+      for (let i = 0; i < additionalFiles.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          additionalFiles[i],
+          process.env.FOLDER_NAME || "pandit",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Additional photo upload failed.",
+          });
+        }
+
+        additionalPhotosUrls.push(upload.secure_url);
+      }
+
+      dataForUpdate.additionalPhotos = additionalPhotosUrls;
     }
 
     // Check if Pandit profile exists
@@ -289,19 +392,19 @@ const getPanditProfileById = async (req, res) => {
     const totalReviews = panditProfile?.ratings?.length || 0;
     const averageRating = totalReviews
       ? panditProfile.ratings.reduce(
-          (acc, rating) => acc + (rating?.rating || 0),
-          0
-        ) / totalReviews
+        (acc, rating) => acc + (rating?.rating || 0),
+        0
+      ) / totalReviews
       : 0;
 
     const roundedAverageRating = averageRating.toFixed(1);
 
-        // Check if the profile is saved by the user
-        const saved = await SavedProfile.findOne({
-          userId,
-          saveProfile: panditId,
-          profileType: "Pandit",
-        });
+    // Check if the profile is saved by the user
+    const saved = await SavedProfile.findOne({
+      userId,
+      saveProfile: panditId,
+      profileType: "Pandit",
+    });
 
     const responseData = {
       ...panditProfile.toObject(),
@@ -745,13 +848,28 @@ const getAllPandit = async (req, res) => {
       ...(rating ? [{ $match: { averageRating: ratingMatch } }] : []),
 
       // Filter by experience if provided
-...(experience
-  ? [
-      {
-        $match: {
-          $expr: {
-            $gte: [
-              {
+      ...(experience
+        ? [
+          {
+            $match: {
+              $expr: {
+                $gte: [
+                  {
+                    $convert: {
+                      input: "$experience",
+                      to: "int",
+                      onError: 0,
+                      onNull: 0
+                    }
+                  },
+                  parseInt(experience)
+                ],
+              },
+            },
+          },
+          {
+            $addFields: {
+              experienceNum: {
                 $convert: {
                   input: "$experience",
                   to: "int",
@@ -759,25 +877,10 @@ const getAllPandit = async (req, res) => {
                   onNull: 0
                 }
               },
-              parseInt(experience)
-            ],
+            },
           },
-        },
-      },
-      {
-        $addFields: {
-          experienceNum: {
-            $convert: {
-              input: "$experience",
-              to: "int",
-              onError: 0,
-              onNull: 0
-            }
-          },
-        },
-      },
-    ]
-  : []),
+        ]
+        : []),
 
 
       // Lookup saved profiles for current user
@@ -811,8 +914,8 @@ const getAllPandit = async (req, res) => {
             ? { averageRating: 1, experienceNum: 1 } // rating asc, then experience desc
             : { averageRating: 1 } // only rating asc
           : experience
-          ? { experienceNum: 1 } // only experience desc
-          : { createdAt: -1 }, // default latest
+            ? { experienceNum: 1 } // only experience desc
+            : { createdAt: -1 }, // default latest
       },
     ]);
 
