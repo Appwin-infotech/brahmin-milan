@@ -1,10 +1,9 @@
-const { response } = require("express");
 const Activist = require("../models/activist");
 const EventPost = require("../models/eventPost");
 const Notification = require("../models/notification");
 const { getConnectedUsers, getIO, sendNotificationToAdmin } = require("../socket/socket.server");
-const User = require("../models/user");
 const Admin = require("../models/admin");
+const { uploadImageToCloudinary } = require("../utils/imageUploader");
 
 //create a eventPost
 const createEventPost = async (req, res) => {
@@ -30,12 +29,34 @@ const createEventPost = async (req, res) => {
       });
     }
 
-    // Upload eventPost images via req.files.images
+    // 🔹 Upload eventPost images to Cloudinary
     const imagesUrls = [];
-    if (req.files?.images && req.files.images.length > 0) {
-      for (let i = 0; i < req.files.images.length; i++) {
-        const uploadedPath = req.files.images[i].path.replace(/\\/g, "/");
-        imagesUrls.push(uploadedPath);
+    if (req.files?.images) {
+      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+      if (files.length > 5) {
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 images.",
+        });
+      }
+
+      for (let i = 0; i < files.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          files[i],
+          process.env.FOLDER_NAME || "eventPosts",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Image upload failed.",
+          });
+        }
+
+        imagesUrls.push(upload.secure_url);
       }
     }
 
@@ -106,9 +127,9 @@ const createEventPost = async (req, res) => {
 //getAllEventPost with its respective activist details
 const getAllEventsPost = async (req, res) => {
   try {
-    
-    const {_id:userId} = req.user || req.admin;
-   
+
+    const { _id: userId } = req.user || req.admin;
+
     // Prepare filter conditions if needed (currently empty)
     const filterConditions = {};
 
@@ -221,7 +242,6 @@ const getEventPostById = async (req, res) => {
   }
 };
 
-
 //view our own EventsPost Profile
 const viewEventPost = async (req, res) => {
   try {
@@ -250,7 +270,7 @@ const viewEventPost = async (req, res) => {
     // Step 2: Add `isLiked` field to each post
     const eventPostsWithLikeStatus = eventPosts.map(post => {
       const isLiked = likedPostIds.has(post._id.toString());
-      return { ...post.toObject(), isLiked,activistDetails:activist };
+      return { ...post.toObject(), isLiked, activistDetails: activist };
     });
 
     // Step 3: Send response with activistDetails
@@ -318,12 +338,28 @@ const updateEventPost = async (req, res) => {
     // Remove specified images
     imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
 
-    // Handle newly uploaded images from multer
+    // 🔹 Handle newly uploaded images via Cloudinary
     const newUploadedImages = [];
     if (req.files?.images) {
-      req.files.images.forEach((file) => {
-        newUploadedImages.push(file.path.replace(/\\/g, "/"));
-      });
+      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+
+      for (let i = 0; i < files.length; i++) {
+        const upload = await uploadImageToCloudinary(
+          files[i],
+          process.env.FOLDER_NAME || "eventPosts",
+          1200,
+          600
+        );
+
+        if (!upload?.secure_url) {
+          return res.status(500).json({
+            status: false,
+            message: "Image upload failed.",
+          });
+        }
+
+        newUploadedImages.push(upload.secure_url);
+      }
     }
 
     // Replace removed images with new ones (if available)
@@ -397,17 +433,17 @@ const likePost = async (req, res) => {
         const postOwnerId = event.userId;
         const notificationMessage = `${username} liked your event!`;
 
-await Notification.create({
-  userId: postOwnerId,
-  userType: 'User',
-  notificationType: 'like',
-  relatedData: {
-    likedBy: { name: username, _id: userId },
-    photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : null,
-    postId,
-  },
-  message: notificationMessage,
-});
+        await Notification.create({
+          userId: postOwnerId,
+          userType: 'User',
+          notificationType: 'like',
+          relatedData: {
+            likedBy: { name: username, _id: userId },
+            photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : null,
+            postId,
+          },
+          message: notificationMessage,
+        });
 
         const connectedUsers = getConnectedUsers();
         const io = getIO();
@@ -416,10 +452,10 @@ await Notification.create({
         if (!postOwnerSocketId) {
           socketIssue = `User not Active yet! postOwnerSocketId not found.`;
         } else {
-         io.to(postOwnerSocketId).emit("post-liked", {
-           likedBy: { name: username, userId, photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : null },
-           postId,
-           message: notificationMessage,
+          io.to(postOwnerSocketId).emit("post-liked", {
+            likedBy: { name: username, userId, photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : null },
+            postId,
+            message: notificationMessage,
           });
         }
       }
@@ -461,8 +497,6 @@ await Notification.create({
   }
 };
 
-
-
 //comment on post
 const postComments = async (req, res) => {
   try {
@@ -490,18 +524,18 @@ const postComments = async (req, res) => {
       const postOwnerId = event.userId;
       const notificationMessage = `${username} commented on your event!`;
 
-await Notification.create({
-  userId: postOwnerId,
-  userType: 'User',
-  notificationType: 'comment',
-  relatedData: {
-    commentBy: { name: username, _id: userId },
-    photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : 'default-photo-url',
-    postId,
-    comment,
-  },
-  message: notificationMessage,
-});
+      await Notification.create({
+        userId: postOwnerId,
+        userType: 'User',
+        notificationType: 'comment',
+        relatedData: {
+          commentBy: { name: username, _id: userId },
+          photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : 'default-photo-url',
+          postId,
+          comment,
+        },
+        message: notificationMessage,
+      });
       const connectedUsers = getConnectedUsers();
       const io = getIO();
       const postOwnerSocketId = await connectedUsers.get(postOwnerId.toString());
@@ -509,15 +543,15 @@ await Notification.create({
       if (!postOwnerSocketId) {
         socketIssue = `User not Active yet ! postOwnerSocketId not found.`;
       } else {
-     io.to(postOwnerSocketId).emit("post-commented", {
-       commentBy: {
-       name: username,
-       userId,
-       photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : 'default-photo-url'
-      },
-      postId,
-      message: notificationMessage,
-      });
+        io.to(postOwnerSocketId).emit("post-commented", {
+          commentBy: {
+            name: username,
+            userId,
+            photoUrl: Array.isArray(photoUrl) && photoUrl.length > 0 ? photoUrl[0] : 'default-photo-url'
+          },
+          postId,
+          message: notificationMessage,
+        });
       }
     }
 
@@ -589,11 +623,11 @@ const deleteCommentFromPost = async (req, res) => {
     }
 
     await Notification.deleteMany({
-  notificationType: 'comment',
-  userId: eventPost.userId,           // post owner who received the notification
-  "relatedData.commentBy._id": comment.user,  // comment creator userId
-  "relatedData.postId": postId,
-});
+      notificationType: 'comment',
+      userId: eventPost.userId,           // post owner who received the notification
+      "relatedData.commentBy._id": comment.user,  // comment creator userId
+      "relatedData.postId": postId,
+    });
     // Refetch and populate updated post
     const updatedEvent = await EventPost.findById(postId)
       .populate({
@@ -644,7 +678,7 @@ const deleteEventPost = async (req, res) => {
     const activist = await Activist.findOne({ userId });
 
     if (!activist) {
-      return res.status(400).json({ status:false, message: "Activist not found." });
+      return res.status(400).json({ status: false, message: "Activist not found." });
     }
 
     // Find the event post
@@ -652,12 +686,12 @@ const deleteEventPost = async (req, res) => {
 
     // If the event post does not exist
     if (!eventPost) {
-      return res.status(400).json({ status:false, message: "Event Post not found!" });
+      return res.status(400).json({ status: false, message: "Event Post not found!" });
     }
 
     // Check if the user is the owner of the event post
     if (activist.activistId.toString() !== eventPost.activistId.toString()) {
-      return res.status(400).json({ status:false, message: "Unauthorized to delete this post." });
+      return res.status(400).json({ status: false, message: "Unauthorized to delete this post." });
     }
 
     // Delete the event post and store the result
@@ -665,10 +699,10 @@ const deleteEventPost = async (req, res) => {
 
     // Check if any document was deleted
     if (!deletedPost) {
-      return res.status(400).json({ status:false, message: "Failed to delete the Event Post." });
+      return res.status(400).json({ status: false, message: "Failed to delete the Event Post." });
     }
 
-        // Delete all notifications of types eventPostCreated, like, comment related to this post
+    // Delete all notifications of types eventPostCreated, like, comment related to this post
     await Notification.deleteMany({
       notificationType: { $in: ["eventPostCreated", "like", "comment"] },
       "relatedData.postId": postId,
@@ -676,12 +710,13 @@ const deleteEventPost = async (req, res) => {
 
     // Send success response
     return res.status(200).json({
-      status: true ,message: "Event Post deleted successfully.", data: deletedPost});
+      status: true, message: "Event Post deleted successfully.", data: deletedPost
+    });
 
   } catch (err) {
     // Handle any server errors
-    res.status(500).json({ status:false, message: err.message });
+    res.status(500).json({ status: false, message: err.message });
   }
 };
 
-module.exports = {createEventPost,viewEventPost,deleteEventPost,deleteCommentFromPost,getAllEventsPost,getEventPostById,updateEventPost,likePost,postComments};
+module.exports = { createEventPost, viewEventPost, deleteEventPost, deleteCommentFromPost, getAllEventsPost, getEventPostById, updateEventPost, likePost, postComments };
