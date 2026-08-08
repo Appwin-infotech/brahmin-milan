@@ -6,8 +6,9 @@ export const getPhotoUrl = (photo) => {
     if (photo.startsWith("http://") || photo.startsWith("https://")) {
         return photo;
     }
-
-    return IMAGE_URL + photo;
+    const base = IMAGE_URL.replace(/\/+$/, "");
+    const path = photo.replace(/^\/+/, "");
+    return `${base}/${path}`;
 };
 
 export const getPhotoUrls = (photoOrPhotos) => {
