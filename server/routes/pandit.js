@@ -5,11 +5,18 @@ const upload = require('../config/multerConfig');
 
 const router = Router();
 
+const panditPhotoUpload = upload.fields([
+  { name: "profilePhoto", maxCount: 1 },
+  { name: "additionalPhotos", maxCount: 5 },
+]);
+
 router.post('/createPandit', verifyToken,
+  panditPhotoUpload,
   controller.createPanditProfile
 );
 
 router.patch("/update-panditProfile", verifyToken,
+  panditPhotoUpload,
   controller.updatePanditProfile
 );
 
@@ -23,4 +30,3 @@ router.get("/share-panditProfile/:id", verifyToken, controller.sharePanditProfil
 router.delete("/delete-panditProfile", verifyToken, controller.deletePanditProfile);
 
 module.exports = router;
-

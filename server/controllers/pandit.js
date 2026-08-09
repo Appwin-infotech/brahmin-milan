@@ -7,7 +7,25 @@ const User = require("../models/user");
 const Notification = require("../models/notification");
 const Admin = require("../models/admin");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const fs = require("fs");
+const path = require("path");
+
+// Builds the public URL for a file Multer just saved to /uploads
+const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+
+// Deletes a local uploads/ file given its public URL. Safe no-op for
+// non-local (e.g. leftover Cloudinary) URLs or missing files.
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
 
 const createPanditProfile = async (req, res) => {
   try {
@@ -95,68 +113,36 @@ const createPanditProfile = async (req, res) => {
       });
     }
 
-    // 🔹 Validate profilePhoto - max 1
+    // 🔹 profilePhoto - max 1 (Multer populates req.files.profilePhoto as an array)
     let photoUrlPath = null;
     if (req.files?.profilePhoto) {
-      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
+      const profilePhotoFiles = req.files.profilePhoto;
 
       if (profilePhotoFiles.length > 1) {
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
         return res.status(400).json({
           status: false,
           message: "Only 1 profile photo is allowed.",
         });
       }
 
-      const upload = await uploadImageToCloudinary(
-        profilePhotoFiles[0],
-        process.env.FOLDER_NAME || "pandit",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Profile photo upload failed.",
-        });
-      }
-
-      photoUrlPath = upload.secure_url;
+      photoUrlPath = buildImageUrl(profilePhotoFiles[0].filename);
     }
 
-    // 🔹 Validate additionalPhotos - max 5
-    const additionalPhotosUrls = [];
+    // 🔹 additionalPhotos - max 5
+    let additionalPhotosUrls = [];
     if (req.files?.additionalPhotos) {
-      const additionalFiles = Array.isArray(req.files.additionalPhotos)
-        ? req.files.additionalPhotos
-        : [req.files.additionalPhotos];
+      const additionalFiles = req.files.additionalPhotos;
 
       if (additionalFiles.length > 5) {
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
         return res.status(400).json({
           status: false,
           message: "You can only upload a maximum of 5 additional photos.",
         });
       }
 
-      for (let i = 0; i < additionalFiles.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          additionalFiles[i],
-          process.env.FOLDER_NAME || "pandit",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Additional photo upload failed.",
-          });
-        }
-
-        additionalPhotosUrls.push(upload.secure_url);
-      }
+      additionalPhotosUrls = additionalFiles.map((file) => buildImageUrl(file.filename));
     }
 
     const newPandit = new Pandit({
@@ -259,78 +245,53 @@ const updatePanditProfile = async (req, res) => {
       });
     }
 
-    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
-    if (req.files?.profilePhoto) {
-      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
-
-      if (profilePhotoFiles.length > 1) {
-        return res.status(400).json({
-          status: false,
-          message: "Only 1 profile photo is allowed.",
-        });
-      }
-
-      const upload = await uploadImageToCloudinary(
-        profilePhotoFiles[0],
-        process.env.FOLDER_NAME || "pandit",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Profile photo upload failed.",
-        });
-      }
-
-      dataForUpdate.profilePhoto = upload.secure_url;
-    }
-
-    // 🔹 Handle additionalPhotos upload via Cloudinary - max 5
-    if (req.files?.additionalPhotos) {
-      const additionalFiles = Array.isArray(req.files.additionalPhotos)
-        ? req.files.additionalPhotos
-        : [req.files.additionalPhotos];
-
-      if (additionalFiles.length > 5) {
-        return res.status(400).json({
-          status: false,
-          message: "You can only upload a maximum of 5 additional photos.",
-        });
-      }
-
-      const additionalPhotosUrls = [];
-      for (let i = 0; i < additionalFiles.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          additionalFiles[i],
-          process.env.FOLDER_NAME || "pandit",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Additional photo upload failed.",
-          });
-        }
-
-        additionalPhotosUrls.push(upload.secure_url);
-      }
-
-      dataForUpdate.additionalPhotos = additionalPhotosUrls;
-    }
-
-    // Check if Pandit profile exists
+    // Check if Pandit profile exists (fetched early so we can clean up old files)
     const existingPandit = await Pandit.findOne({ userId });
     if (!existingPandit) {
       return res.status(400).json({
         status: false,
         message: "Pandit profile not found!",
       });
+    }
+
+    // 🔹 Handle profilePhoto upload - max 1
+    if (req.files?.profilePhoto) {
+      const profilePhotoFiles = req.files.profilePhoto;
+
+      if (profilePhotoFiles.length > 1) {
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      // old profile photo is being replaced — remove it from disk
+      if (existingPandit.profilePhoto) {
+        deleteLocalImage(existingPandit.profilePhoto);
+      }
+
+      dataForUpdate.profilePhoto = buildImageUrl(profilePhotoFiles[0].filename);
+    }
+
+    // 🔹 Handle additionalPhotos upload - max 5
+    if (req.files?.additionalPhotos) {
+      const additionalFiles = req.files.additionalPhotos;
+
+      if (additionalFiles.length > 5) {
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      // old additional photos are being replaced — remove them from disk
+      if (Array.isArray(existingPandit.additionalPhotos)) {
+        existingPandit.additionalPhotos.forEach(deleteLocalImage);
+      }
+
+      dataForUpdate.additionalPhotos = additionalFiles.map((file) => buildImageUrl(file.filename));
     }
 
     // Update Pandit profile
@@ -565,206 +526,6 @@ const updatePanditReviewRating = async (req, res) => {
     res.status(500).json({ status: false, error: err.message });
   }
 };
-
-// Get All Pandits with their average rating and total number of reviews
-// const getAllPandit = async (req, res) => {
-//   try {
-//     const userId = req?.user?._id; // Get the logged-in user's ID
-
-//     // Extract filters from query params
-//     const { locality, services, rating, experience } = req.query;
-
-//     // Step 1: ✅ Get userIds with active Pandit subscription
-//     const activePanditUsers = await User.find({
-//       serviceSubscriptions: {
-//         $elemMatch: {
-//           serviceType: "Pandit",
-//           status: "Active",
-//           startDate: { $lte: new Date() },
-//           endDate: { $gte: new Date() },
-//         },
-//       },
-//     }).select("_id");
-
-//     const activeUserIds = activePanditUsers.map((user) => user._id);
-
-//     // Step 2: Prepare filter conditions for Pandit profiles
-//     let filterConditions = {
-//       isEnabled: true,
-//       userId: { $in: activeUserIds }, // ✅ Only allow profiles of users with active Pandit subscription
-//     };
-
-//     // Apply locality filter (case-insensitive search)
-//     if (locality) {
-//       filterConditions.city = { $regex: locality, $options: "i" }; // Case-insensitive search for locality
-//     }
-
-//     // Apply services filter (check if the Pandit offers certain services)
-//     if (services) {
-//       const servicesArray = services.split(","); // Assuming services are passed as comma-separated values
-//       filterConditions.panditServices = { $in: servicesArray };
-//     }
-
-//        // Rating range logic
-//     // let ratingMatch = {};
-//     // const r = parseInt(rating);
-//     // if (r === 5) ratingMatch = { $gte: 4.1, $lte: 5 };
-//     // else if (r === 4) ratingMatch = { $gte: 3.1, $lt: 4.1 };
-//     // else if (r === 3) ratingMatch = { $gte: 2.1, $lt: 3.1 };
-//     // else if (r === 2) ratingMatch = { $gte: 1.1, $lt: 2.1 };
-//     // else if (r === 1) ratingMatch = { $eq: 1 };
-
-//     // Rating filter logic
-// let ratingMatch = {};
-// if (rating) {
-//   ratingMatch = { $gte: parseFloat(rating) };
-// }
-
-//     // Aggregation pipeline for getting Pandit profiles with their ratings and reviews
-//     const pandits = await Pandit.aggregate([
-//       {
-//         $match: filterConditions, // ✅ Filter active + enabled + locality + services + experience
-//       },
-//       {
-//         $lookup: {
-//           from: "ratings",
-//           localField: "_id",
-//           foreignField: "entityId",
-//           pipeline: [
-//             {
-//               $match: {
-//                 entityType: "Pandit", // Only Pandit ratings
-//               },
-//             },
-//             {
-//               $project: {
-//                 rating: 1,
-//                 review: 1,
-//                 userId: 1,
-//               },
-//             },
-//           ],
-//           as: "reviews",
-//         },
-//       },
-//       {
-//         $addFields: {
-//           totalReviews: { $size: "$reviews" },
-//           averageRating: {
-//             $cond: {
-//               if: { $gt: [{ $size: "$reviews" }, 0] },
-//               then: { $avg: "$reviews.rating" },
-//               else: 0,
-//             },
-//           },
-//         },
-//       },
-
-//       {
-//         $addFields: {
-//           averageRating: { $round: ["$averageRating", 1] },
-//         },
-//       },
-
-//       ...(rating
-//         ? [
-//             {
-//               $match: {
-//                 averageRating: ratingMatch,
-//               },
-//             },
-//             {
-//               $sort: { averageRating: 1 }, // ✅ Sort by rating if filter applied
-//             },
-//           ]
-//         : [
-//             {
-//               $sort: { createdAt: -1 }, // ✅ Default sort
-//             },
-//           ]),
-//       {
-//         $project: {
-//           reviews: 0, // Optional
-//         },
-//       },
-
-//       {
-//         $lookup: {
-//           from: "savedprofiles",
-//           let: { panditId: "$_id" },
-//           pipeline: [
-//             {
-//               $match: {
-//                 $expr: {
-//                   $and: [
-//                     { $eq: ["$userId", userId] },
-//                     { $eq: ["$saveProfile", "$$panditId"] },
-//                   ],
-//                 },
-//               },
-//             },
-//             { $limit: 1 },
-
-
-//           ],
-//           as: "saved",
-//         },
-//       },
-//       {
-//         $addFields: {
-//           isSaved: { $gt: [{ $size: "$saved" }, 0] },
-//         },
-//       },
-//       {
-//         $project: {
-//           saved: 0,
-//         },
-//       },
-//    ...(experience
-//   ? [
-//       {
-//         $match: {
-//           $expr: {
-//             $gte: [{ $toInt: "$experience" }, parseInt(experience)],
-//           },
-//         },
-//       },
-//       {
-//         $addFields: {
-//           experienceNum: { $toInt: "$experience" },
-//         },
-//       },
-//       {
-//         $sort: { experienceNum: 1 }, // ✅ sort by experience only if filtering
-//       },
-//     ]
-//   : [
-//       {
-//         $sort: { createdAt: -1 }, // ✅ Default sort if no experience filter
-//       },
-//     ]),
-//     ]);
-
-//     // If no Pandits found or no reviews
-//     if (!pandits || pandits.length === 0) {
-//       return res.status(400).json({
-//         status: false,
-//         message: "Pandit reviews & ratings not available yet.",
-//       });
-//     }
-
-//     // Return the data with success
-//     return res.status(200).json({
-//       status: true,
-//       data: pandits,
-//     });
-//   } catch (err) {
-//     res.status(500).json({
-//       status: false,
-//       error: err.message || "Something went wrong.",
-//     });
-//   }
-// };
 
 const getAllPandit = async (req, res) => {
   try {
@@ -1070,6 +831,12 @@ const deletePanditProfile = async (req, res) => {
 
     if (failedDeletions.length > 0) {
       console.error("Some deletions failed:", failedDeletions);
+    }
+
+    // Clean up local image files now that we own storage
+    if (exitsPandit.profilePhoto) deleteLocalImage(exitsPandit.profilePhoto);
+    if (Array.isArray(exitsPandit.additionalPhotos)) {
+      exitsPandit.additionalPhotos.forEach(deleteLocalImage);
     }
 
     // Mark the isPandit as false after successful deletion

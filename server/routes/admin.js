@@ -59,16 +59,18 @@ router.patch(
 );
 
 router.delete("/deleteCommiteeByAdmin/:committeeId", verifyAdminToken, controller.deleteCommiteeByAdmin);
-// Dharmshala creation: images (multiple files)
+// Dharmshala creation: images (multiple files, max 4)
 router.post(
   "/create-DharmshalaByAdmin",
   verifyAdminToken,
+  upload.fields([{ name: "images", maxCount: 4 }]),
   controller.dharmshalaByAdmin
 );
-// Dharmshala update: images (multiple files)
+// Dharmshala update: images (multiple files, max 4)
 router.patch(
   "/updateDharmshala/:id",
   verifyAdminToken,
+  upload.fields([{ name: "images", maxCount: 4 }]),
   controller.updateDharmshalaById
 );
 router.get('/getDharmshalaById/:id', verifyAdminToken, controller.getDharmshalaById);
@@ -105,6 +107,7 @@ router.delete("/delete-eventPost/:postId", verifyAdminToken, controller.deleteEv
 router.patch(
   "/updateEventPostByAdmin/:postId",
   verifyAdminToken,
+  upload.fields([{ name: "images", maxCount: 5 }]),
   controller.updateEventPostByAdmin
 );
 
@@ -116,6 +119,7 @@ router.post("/updateActivist/:id", verifyAdminToken, controller.updateActivistAc
 router.patch(
   "/updateActivistByAdmin/:id",
   verifyAdminToken,
+  upload.fields([{ name: "profilePhoto", maxCount: 1 }]),
   controller.updateActivistProfileByAdmin
 );
 
@@ -130,7 +134,7 @@ router.patch("/markSeenAllNotification", verifyAdminToken, notificationControlle
 router.patch("/feedBackReceivedByAdmin/:id", verifyAdminToken, controller.feedBackReceivedByAdmin);
 
 router.put("/updateUser/:userId", verifyAdminToken, controller.editUser);
-router.put("/updateAdvertisementByAdmin/:id", upload.array("media"), verifyAdminToken, controller.updateAdvertisementByAdmin);
+router.put("/updateAdvertisementByAdmin/:id", verifyAdminToken, upload.array("media"), controller.updateAdvertisementByAdmin);
 
 
 //Admin OTP
@@ -144,4 +148,4 @@ router.delete("/delete-feedbackByAdmin/:feedbackId", verifyAdminToken, controlle
 router.delete("/delete-advertise-request/:advertiseId", verifyAdminToken, controller.deleteAdvertiseRequestByAdmin);
 
 
-module.exports = router;    
+module.exports = router;

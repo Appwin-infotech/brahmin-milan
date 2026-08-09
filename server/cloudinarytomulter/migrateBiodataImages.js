@@ -5,13 +5,22 @@ const fs = require('fs');
 const path = require('path');
 const Biodata = require('../models/biodata');
 
+const BASE_URL = process.env.BASE_URL;
+
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-function buildStoredPath(filename) {
-  return `uploads/${filename}`;
+function buildStoredUrl(filename) {
+  return `${BASE_URL}/uploads/${filename}`;
+}
+
+function normalizeLocalUrl(value) {
+  if (typeof value !== 'string') return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  const filename = value.replace(/^\/?uploads\//, '');
+  return buildStoredUrl(filename);
 }
 
 function downloadImage(url, filepath) {
@@ -28,43 +37,55 @@ function downloadImage(url, filepath) {
   });
 }
 
-let migrated = 0;
-let skipped = 0;
+let migratedFromCloudinary = 0;
+let normalizedToFullUrl = 0;
+let alreadyCorrect = 0;
 let failed = 0;
 
-// Handles a field that may be a single string or an array of strings.
-// Returns the same shape back (string in -> string out, array in -> array out).
 async function migrateField(value, label) {
   const wasArray = Array.isArray(value);
-  const urls = wasArray ? value : (value ? [value] : []);
+  const items = wasArray ? value : (value ? [value] : []);
 
   const results = [];
-  for (const url of urls) {
-    if (typeof url !== 'string' || !url.includes('res.cloudinary.com')) {
-      if (typeof url === 'string') results.push(url); // already local, leave as-is
-      skipped++;
+  for (const item of items) {
+    if (typeof item !== 'string') {
+      results.push(item);
       continue;
     }
 
-    try {
-      const ext = path.extname(new URL(url).pathname) || '.jpg';
-      const filename = `migrated-biodata-${label}-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
-      const filepath = path.join(uploadDir, filename);
+    // Case 1: still a live Cloudinary URL — download it locally
+    if (item.includes('res.cloudinary.com')) {
+      try {
+        const ext = path.extname(new URL(item).pathname) || '.jpg';
+        const filename = `migrated-biodata-${label}-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+        const filepath = path.join(uploadDir, filename);
 
-      await downloadImage(url, filepath);
+        await downloadImage(item, filepath);
 
-      results.push(buildStoredPath(filename));
-      migrated++;
-      console.log(`✓ ${label}: ${url} -> ${filename}`);
-    } catch (err) {
-      console.error(`✗ ${label}: failed on ${url} — ${err.message}`);
-      results.push(url); // keep old Cloudinary URL so nothing breaks
-      failed++;
+        results.push(buildStoredUrl(filename));
+        migratedFromCloudinary++;
+        console.log(`✓ downloaded ${label}: ${item} -> ${filename}`);
+      } catch (err) {
+        console.error(`✗ ${label}: failed on ${item} — ${err.message}`);
+        results.push(item); // keep old Cloudinary URL so nothing breaks
+        failed++;
+      }
+      continue;
     }
+
+    // Case 2: already local, but possibly a bare relative path from the old
+    const normalizedUrl = normalizeLocalUrl(item);
+    if (normalizedUrl !== item) {
+      normalizedToFullUrl++;
+      console.log(`↻ normalized ${label}: ${item} -> ${normalizedUrl}`);
+    } else {
+      alreadyCorrect++;
+    }
+    results.push(normalizedUrl);
   }
 
   if (wasArray) return results;
-  return results[0] || null; // single-value fields
+  return results[0] || null; 
 }
 
 async function migrate() {
@@ -90,12 +111,15 @@ async function migrate() {
     }
 
     if (Object.keys(update).length > 0) {
-      // Targeted update only — avoids full-document validation on unrelated fields
       await Biodata.updateOne({ _id: doc._id }, { $set: update });
     }
   }
 
-  console.log(`\nDone. Migrated: ${migrated}, already local: ${skipped}, failed: ${failed}`);
+  console.log(
+    `\nDone. Downloaded from Cloudinary: ${migratedFromCloudinary}, ` +
+    `normalized relative -> full URL: ${normalizedToFullUrl}, ` +
+    `already correct: ${alreadyCorrect}, failed: ${failed}`
+  );
   await mongoose.disconnect();
 }
 

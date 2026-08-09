@@ -32,9 +32,27 @@ const cloudinary = require("cloudinary").v2;
 const { generateOTP, sendOTP } = require("../utils/otpService");
 const moment = require("moment");
 const { default: mongoose } = require("mongoose");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const path = require("path");
+const fs = require("fs");
+const { BASE_URL } = require("../utils/constants");
+const { UPLOAD_ROOT } = require("../config/multerConfig");
 
-// Create First Super Admin (Temporary Open Route)
+const buildFileUrl = (fieldname, filename) =>
+  `${BASE_URL}/uploads/${fieldname}/${filename}`;
+
+const deleteUploadedFile = (fieldname, fileUrl) => {
+  try {
+    if (!fileUrl) return;
+    const filename = fileUrl.split("/").pop();
+    const filePath = path.join(UPLOAD_ROOT, fieldname, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.error("Error deleting uploaded file:", err.message);
+  }
+};
+
 const createFirstAdmin = async (req, res) => {
   try {
     const { mobileNo, password, name } = req.body;
@@ -97,7 +115,6 @@ const createFirstAdmin = async (req, res) => {
   }
 };
 
-// Create Admin (Only Super Admins Can Add Admins)
 const createAdmin = async (req, res) => {
   try {
     // Ensure the authenticated admin is passed from `verifyAdminToken`
@@ -169,7 +186,6 @@ const createAdmin = async (req, res) => {
   }
 };
 
-// Admin Login
 const adminLogin = async (req, res) => {
   try {
     const { mobileNo, password } = req.body;
@@ -258,8 +274,6 @@ const adminLogout = (req, res) => {
   }
 };
 
-//single profile approval
-// PUT /api/v1/admin/panditRequest/:requestId?action=approve|reject
 const approveOrRejectPanditRequest = async (req, res) => {
   try {
     const admin = req.admin;
@@ -1304,7 +1318,6 @@ const getAllRequests = async (req, res) => {
   }
 };
 
-//getAllSuccessStoryRequest and its shorter name will be getAllStoryRequests
 const getAllStoryRequests = async (req, res) => {
   try {
     const { status } = req.query;
@@ -1336,7 +1349,6 @@ const getAllStoryRequests = async (req, res) => {
   }
 };
 
-//getAllReports by query
 const getAllReports = async (req, res) => {
   try {
     // Extract filters from query params
@@ -1405,7 +1417,6 @@ const getAllReports = async (req, res) => {
   }
 };
 
-//getAllFeedBacks
 const getAllFeedBacks = async (req, res) => {
   try {
     // Fetch all feedbacks from the database
@@ -1431,7 +1442,6 @@ const getAllFeedBacks = async (req, res) => {
   }
 };
 
-//getAllAdvertisementRequest
 const getAllAdvertisementRequest = async (req, res) => {
   try {
     // Fetch all advertisment requests from the database
@@ -1648,7 +1658,6 @@ const specialistController = async (req, res) => {
   }
 };
 
-//deleteUser & it's Details from other models
 const delete_UserById = async (req, res) => {
   try {
     const { id } = req?.params;
@@ -1814,71 +1823,6 @@ const getBiodataByUserAdmin = async (req, res) => {
   }
 };
 
-// const setMetrionial_ActivityStatus = async (req, res) => {
-//   try {
-//     const { bioDataId } = req.body;
-
-//     //check for metrimonial profile exists
-//     const metrimonialProfile = await Biodata.findOne({ bioDataId });
-
-//     if (!metrimonialProfile) {
-//       return res
-//         .status(400)
-//         .json({ status: false, message: "Metrimonial Profile Not Found!" });
-//     }
-
-//     // Update the profile field
-//     if (metrimonialProfile?.activityStatus === "Inactive") {
-//       metrimonialProfile["activityStatus"] = "Active";
-//       // Save the updated user
-//       await metrimonialProfile.save();
-//       return res.status(200).json({
-//         status: true,
-//         message: `Metrimonial Profile is ${metrimonialProfile.activityStatus === "Active"
-//             ? "Activated"
-//             : "InActivated"
-//           }.`,
-//       });
-//     }
-//     if (metrimonialProfile?.activityStatus === "Active") {
-//       metrimonialProfile["activityStatus"] = "Inactive";
-//       // Save the updated user
-//       await metrimonialProfile.save();
-//       return res.status(200).json({
-//         status: true,
-//         message: `Metrimonial Profile is ${metrimonialProfile.activityStatus === "Inactive"
-//             ? "InActivated"
-//             : "Activated"
-//           }.`,
-//       });
-//     }
-
-//     //res error if something went wronh
-//     return res.status(200).json({
-//       status: true,
-//       message: "Something went wrong While setting activityStatus.",
-//     });
-//   } catch (err) {
-//     res.status(500).json({
-//       status: false,
-//       message: "Error While Setting ActivityStatus: " + err.message,
-//     });
-//   }
-// };
-
-/**
- * setMetrimonial_ActivityStatus
- *
- * Toggle behaviour:
- *  - If currently Active  → set Inactive, clear date range
- *  - If currently Inactive → require startDate + endDate from body,
- *    set Active for that date range, schedule auto-deactivation
- *
- * Request body:
- *  { bioDataId, startDate?, endDate? }
- *
- * startDate / endDate are ISO strings e.g. "2026-06-01"
- */
 const setMetrionial_ActivityStatus = async (req, res) => {
   try {
     const { bioDataId, startDate, endDate } = req.body;
@@ -2091,7 +2035,6 @@ const updateUserAccess = async (req, res) => {
   }
 };
 
-//createCommitteProfile by admin for activist
 const committeeByAdmin = async (req, res) => {
   try {
     const adminUserId = req?.admin?._id;
@@ -2183,7 +2126,6 @@ const committeeByAdmin = async (req, res) => {
   }
 };
 
-
 const updateCommitteeByAdmin = async (req, res) => {
   try {
     const { committeeId } = req.params;
@@ -2262,7 +2204,6 @@ const updateCommitteeByAdmin = async (req, res) => {
   }
 };
 
-
 const deleteCommiteeByAdmin = async (req, res) => {
   try {
     const { committeeId } = req?.params;
@@ -2309,122 +2250,6 @@ const deleteCommiteeByAdmin = async (req, res) => {
   }
 };
 
-//dharmshalaByAdmin on the behalf of activist
-const dharmshalaByAdmin = async (req, res) => {
-  try {
-    // Get admin user ID from logged-in admin (via middleware)
-    const adminUserId = req?.admin?._id;
-
-    // Check if the requester is a valid admin
-    const adminProfile = await Admin.findOne({ _id: adminUserId });
-    if (!adminProfile) {
-      return res.status(400).json({
-        status: false,
-        message: "Access denied! Only admin can create Dharmshala profiles on behalf of an Activist.",
-      });
-    }
-
-    // Extract from body
-    const {
-      activistId,
-      dharmshalaName,
-      subCaste,
-      city,
-      description,
-      mobileNo,
-    } = req.body;
-
-    // Validate fields
-    if (
-      !activistId ||
-      !dharmshalaName ||
-      !subCaste ||
-      !city ||
-      !mobileNo
-    ) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Please enter all required fields!" });
-    }
-
-    // Validate activist ID format
-    if (!/^[A-Z]{2}[0-9]{4}$/.test(activistId)) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid activist ID! It should be in the format 'XX0001' to 'ZZ9999'.",
-      });
-    }
-
-    // Validate images uploaded
-    if (!req.files?.images) {
-      return res
-        .status(400)
-        .json({ status: false, message: "At least one image is required!" });
-    }
-
-    // 🔹 Upload images to Cloudinary (max 4)
-    const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-    if (files.length > 4) {
-      return res.status(400).json({
-        status: false,
-        message: "You can only upload a maximum of 4 images.",
-      });
-    }
-
-    const imageUrls = [];
-    for (let i = 0; i < files.length; i++) {
-      const upload = await uploadImageToCloudinary(
-        files[i],
-        process.env.FOLDER_NAME || "dharmshala",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Image upload failed.",
-        });
-      }
-
-      imageUrls.push(upload.secure_url);
-    }
-
-    // Fetch activist profile by activistId
-    const activistProfile = await Activist.findOne({ activistId });
-    if (!activistProfile) {
-      return res.status(400).json({
-        status: false,
-        message: "Activist not found! Please check the ID.",
-      });
-    }
-
-    const userId = activistProfile.userId;
-
-    // Create Dharmshala profile
-    const newDharmshala = new Dharmshala({
-      userId,
-      activistId: activistProfile._id,
-      dharmshalaName,
-      subCaste,
-      city,
-      description,
-      images: imageUrls, // Store Cloudinary URLs array
-      mobileNo,
-    });
-
-    await newDharmshala.save();
-
-    return res.status(200).json({
-      status: true,
-      message: "Dharmshala profile created successfully!",
-      data: newDharmshala,
-    });
-  } catch (err) {
-    return res.status(500).json({ status: false, message: err.message });
-  }
-};
 
 
 const getSubscriptions = async (req, res) => {
@@ -2843,112 +2668,6 @@ const getDharmshalaById = async (req, res) => {
   }
 };
 
-const updateDharmshalaById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = { ...req.body };
-
-    // Validate mobile number format if provided
-    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-    if (updateData.mobileNo && !mobileRegex.test(updateData.mobileNo)) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid mobile number. Please enter a valid 10-digit mobile number.",
-      });
-    }
-
-    // Parse removeImages: expected as JSON string in form-data or array
-    let removeImages = updateData.removeImages;
-    if (typeof removeImages === 'string') {
-      try {
-        removeImages = JSON.parse(removeImages);
-      } catch (err) {
-        return res.status(400).json({
-          status: false,
-          message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
-        });
-      }
-    }
-    if (!Array.isArray(removeImages)) removeImages = [];
-
-    // Fetch existing Dharmshala profile
-    const existingDharmshala = await Dharmshala.findById(id);
-    if (!existingDharmshala) {
-      return res.status(400).json({
-        status: false,
-        message: "Dharmshala not found",
-      });
-    }
-
-    // Current images array
-    let imagesUrls = existingDharmshala.images || [];
-
-    // Remove images specified in removeImages array
-    imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
-
-    // 🔹 Process newly uploaded images via Cloudinary (max 4 total)
-    const newUploadedImages = [];
-    if (req.files?.images) {
-      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-      for (let i = 0; i < files.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          files[i],
-          process.env.FOLDER_NAME || "dharmshala",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Image upload failed.",
-          });
-        }
-
-        newUploadedImages.push(upload.secure_url);
-      }
-    }
-
-    // Merge new images with old, maintaining limit 4
-    imagesUrls = [...imagesUrls, ...newUploadedImages];
-    if (imagesUrls.length > 4) {
-      imagesUrls = imagesUrls.slice(imagesUrls.length - 4);
-    }
-
-    updateData.images = imagesUrls;
-
-    // Remove removeImages field from update data so it doesn't get saved
-    delete updateData.removeImages;
-
-    // Update Dharmshala in DB
-    const updatedDharmshala = await Dharmshala.findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedDharmshala) {
-      return res.status(400).json({
-        status: false,
-        message: "Dharmshala not found",
-      });
-    }
-
-    return res.status(200).json({
-      status: true,
-      message: "Dharmshala updated successfully",
-      data: updatedDharmshala,
-    });
-  } catch (error) {
-    console.error("Error updating Dharmshala:", error);
-    return res.status(500).json({
-      status: false,
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-};
 
 
 const deleteDharmshalaById = async (req, res) => {
@@ -2974,89 +2693,7 @@ const deleteDharmshalaById = async (req, res) => {
   }
 };
 
-const updateEventPostByAdmin = async (req, res) => {
-  try {
-    const dataForUpdate = req.body;
-    const { postId } = dataForUpdate;
 
-    if (!postId) {
-      return res.status(400).json({ status: false, message: "postId is required!" });
-    }
-
-    if (!dataForUpdate) {
-      return res.status(400).json({
-        status: false,
-        message: "Data is required for updating EventPost!",
-      });
-    }
-
-    const existingEventPost = await EventPost.findById(postId);
-    if (!existingEventPost) {
-      return res.status(404).json({ status: false, message: "EventPost not found!" });
-    }
-
-    let imagesUrls = existingEventPost.images || [];
-
-    // Properly parse removeImages
-    let removeImages = [];
-    if (req.body.removeImages) {
-      try {
-        removeImages = JSON.parse(req.body.removeImages);
-      } catch (error) {
-        return res.status(400).json({ status: false, message: "Invalid removeImages format!" });
-      }
-    }
-
-    if (Array.isArray(removeImages)) {
-      imagesUrls = imagesUrls.filter(
-        (imgUrl) => !removeImages.includes(imgUrl)
-      );
-    }
-
-    // 🔹 Handle newly uploaded images via Cloudinary
-    if (req.files?.images) {
-      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-      for (let i = 0; i < files.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          files[i],
-          process.env.FOLDER_NAME || "eventPosts",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Image upload failed.",
-          });
-        }
-
-        imagesUrls.push(upload.secure_url);
-      }
-    }
-
-    if (imagesUrls.length > 5) {
-      imagesUrls = imagesUrls.slice(-5);
-    }
-
-    dataForUpdate.images = imagesUrls;
-
-    const updatedEventPost = await EventPost.findByIdAndUpdate(
-      postId,
-      { $set: dataForUpdate },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      status: true,
-      message: "EventPost updated successfully.",
-      data: updatedEventPost,
-    });
-  } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
-  }
-};
 
 const deleteEventPostById = async (req, res) => {
   try {
@@ -3162,7 +2799,6 @@ const getActivistProfileById = async (req, res) => {
   }
 };
 
-//delete Activist Profile
 const deleteActivistProfile = async (req, res) => {
   try {
     const { id: userId } = req.params;
@@ -3278,117 +2914,6 @@ const updateActivistAccess = async (req, res) => {
   }
 };
 
-const updateActivistProfileByAdmin = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const dataForUpdate = { ...req.body };
-    const { knownActivistId, dob } = dataForUpdate;
-
-    // Ensure at least some data to update or a file
-    if (Object.keys(dataForUpdate).length === 0 && !req.files?.profilePhoto) {
-      return res.status(400).json({
-        status: false,
-        message: "No data provided for updating the profile!",
-      });
-    }
-
-    // Validate mobile number format
-    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-    if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid mobile number. Please enter a valid 10-digit mobile number.",
-      });
-    }
-
-    // Validate knownActivistId format
-    if (knownActivistId) {
-      const regex = /^[A-Z]{2}[0-9]{4}$/;
-      if (!regex.test(knownActivistId)) {
-        return res.status(400).json({
-          status: false,
-          message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001'.`,
-        });
-      }
-
-      const isValidKnownActivist = await Activist.findOne({
-        activistId: knownActivistId,
-      });
-      if (!isValidKnownActivist) {
-        return res.status(400).json({
-          status: false,
-          message: "Invalid KnownActivistId! Activist not found!",
-        });
-      }
-    }
-
-    // Parse DOB if provided
-    if (dob) {
-      const parsedDob = moment(dob, "DD/MM/YYYY", true);
-      if (!parsedDob.isValid()) {
-        return res.status(400).json({
-          status: false,
-          message: "Invalid date format for 'dob'. Expected format is DD/MM/YYYY.",
-        });
-      }
-      dataForUpdate.dob = parsedDob.toDate();
-    }
-
-    // Check if the activist profile exists
-    const existingActivist = await Activist.findById(id);
-    if (!existingActivist) {
-      return res.status(404).json({
-        status: false,
-        message: "Activist profile not found!",
-      });
-    }
-
-    // 🔹 Handle profilePhoto upload via Cloudinary (optional, but max 1 if provided)
-    if (req.files?.profilePhoto) {
-      const files = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
-
-      if (files.length > 1) {
-        return res.status(400).json({
-          status: false,
-          message: "Only 1 profile photo is allowed.",
-        });
-      }
-
-      const upload = await uploadImageToCloudinary(
-        files[0],
-        process.env.FOLDER_NAME || "activist",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Image upload failed.",
-        });
-      }
-
-      dataForUpdate.profilePhoto = upload.secure_url;
-    }
-
-    // Perform the update and return updated document
-    const updatedActivist = await Activist.findByIdAndUpdate(
-      id,
-      { $set: dataForUpdate },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      status: true,
-      message: "Activist profile updated successfully.",
-      data: updatedActivist,
-    });
-  } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
-  }
-};
 
 
 const feedBackReceivedByAdmin = async (req, res) => {
@@ -3690,7 +3215,6 @@ const requestAdminOTP = async (req, res) => {
   }
 };
 
-// Verify OTP and Reset Password
 const verifyAdminOTPAndResetPassword = async (req, res) => {
   try {
     const { mobileNo, otp, newPassword } = req.body;
@@ -3798,7 +3322,6 @@ const changeAdminPassword = async (req, res) => {
   }
 };
 
-//deleteFeedbackById
 const deleteFeedbackByAdmin = async (req, res) => {
   try {
     const { feedbackId } = req.params;
@@ -3860,6 +3383,379 @@ const deleteAdvertiseRequestByAdmin = async (req, res) => {
   }
 };
 
+
+const dharmshalaByAdmin = async (req, res) => {
+  try {
+    // Get admin user ID from logged-in admin (via middleware)
+    const adminUserId = req?.admin?._id;
+
+    // Check if the requester is a valid admin
+    const adminProfile = await Admin.findOne({ _id: adminUserId });
+    if (!adminProfile) {
+      return res.status(400).json({
+        status: false,
+        message: "Access denied! Only admin can create Dharmshala profiles on behalf of an Activist.",
+      });
+    }
+
+    // Extract from body
+    const {
+      activistId,
+      dharmshalaName,
+      subCaste,
+      city,
+      description,
+      mobileNo,
+    } = req.body;
+
+    // Validate fields
+    if (
+      !activistId ||
+      !dharmshalaName ||
+      !subCaste ||
+      !city ||
+      !mobileNo
+    ) {
+      return res
+        .status(400)
+        .json({ status: false, message: "Please enter all required fields!" });
+    }
+
+    // Validate activist ID format
+    if (!/^[A-Z]{2}[0-9]{4}$/.test(activistId)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid activist ID! It should be in the format 'XX0001' to 'ZZ9999'.",
+      });
+    }
+
+    // Validate images uploaded (Multer: upload.fields -> req.files.images is an array)
+    const files = req.files?.images || [];
+
+    if (files.length === 0) {
+      return res
+        .status(400)
+        .json({ status: false, message: "At least one image is required!" });
+    }
+
+    // 🔹 Build local (Multer) image URLs (max 4)
+    if (files.length > 4) {
+      // Clean up files Multer already wrote to disk before rejecting
+      files.forEach((f) => deleteUploadedFile("images", f.filename));
+      return res.status(400).json({
+        status: false,
+        message: "You can only upload a maximum of 4 images.",
+      });
+    }
+
+    const imageUrls = files.map((file) => buildFileUrl("images", file.filename));
+
+    // Fetch activist profile by activistId
+    const activistProfile = await Activist.findOne({ activistId });
+    if (!activistProfile) {
+      // Uploaded files are orphaned since the activist wasn't found — clean up
+      imageUrls.forEach((url) => deleteUploadedFile("images", url));
+      return res.status(400).json({
+        status: false,
+        message: "Activist not found! Please check the ID.",
+      });
+    }
+
+    const userId = activistProfile.userId;
+
+    // Create Dharmshala profile
+    const newDharmshala = new Dharmshala({
+      userId,
+      activistId: activistProfile._id,
+      dharmshalaName,
+      subCaste,
+      city,
+      description,
+      images: imageUrls,
+      mobileNo,
+    });
+
+    await newDharmshala.save();
+
+    return res.status(200).json({
+      status: true,
+      message: "Dharmshala profile created successfully!",
+      data: newDharmshala,
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+const updateDharmshalaById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+
+    // Validate mobile number format if provided
+    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (updateData.mobileNo && !mobileRegex.test(updateData.mobileNo)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid mobile number. Please enter a valid 10-digit mobile number.",
+      });
+    }
+
+    // Parse removeImages: expected as JSON string in form-data or array
+    let removeImages = updateData.removeImages;
+    if (typeof removeImages === 'string') {
+      try {
+        removeImages = JSON.parse(removeImages);
+      } catch (err) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
+        });
+      }
+    }
+    if (!Array.isArray(removeImages)) removeImages = [];
+
+    // Fetch existing Dharmshala profile
+    const existingDharmshala = await Dharmshala.findById(id);
+    if (!existingDharmshala) {
+      return res.status(400).json({
+        status: false,
+        message: "Dharmshala not found",
+      });
+    }
+
+    // Current images array
+    let imagesUrls = existingDharmshala.images || [];
+
+    // Remove images specified in removeImages array, deleting the files from disk
+    const imagesToDelete = imagesUrls.filter((imgUrl) => removeImages.includes(imgUrl));
+    imagesToDelete.forEach((imgUrl) => deleteUploadedFile("images", imgUrl));
+    imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
+
+    // 🔹 Process newly uploaded images via Multer (local disk) — max 4 total
+    const newFiles = req.files?.images || [];
+    const newUploadedImages = newFiles.map((file) =>
+      buildFileUrl("images", file.filename)
+    );
+
+    // Merge new images with old, maintaining limit 4
+    imagesUrls = [...imagesUrls, ...newUploadedImages];
+    if (imagesUrls.length > 4) {
+      const overflow = imagesUrls.length - 4;
+      const dropped = imagesUrls.slice(0, overflow);
+      dropped.forEach((imgUrl) => deleteUploadedFile("images", imgUrl));
+      imagesUrls = imagesUrls.slice(overflow);
+    }
+
+    updateData.images = imagesUrls;
+
+    // Remove removeImages field from update data so it doesn't get saved
+    delete updateData.removeImages;
+
+    // Update Dharmshala in DB
+    const updatedDharmshala = await Dharmshala.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedDharmshala) {
+      return res.status(400).json({
+        status: false,
+        message: "Dharmshala not found",
+      });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "Dharmshala updated successfully",
+      data: updatedDharmshala,
+    });
+  } catch (error) {
+    console.error("Error updating Dharmshala:", error);
+    return res.status(500).json({
+      status: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+const updateEventPostByAdmin = async (req, res) => {
+  try {
+    const dataForUpdate = req.body;
+    const { postId } = dataForUpdate;
+
+    if (!postId) {
+      return res.status(400).json({ status: false, message: "postId is required!" });
+    }
+
+    if (!dataForUpdate) {
+      return res.status(400).json({
+        status: false,
+        message: "Data is required for updating EventPost!",
+      });
+    }
+
+    const existingEventPost = await EventPost.findById(postId);
+    if (!existingEventPost) {
+      return res.status(404).json({ status: false, message: "EventPost not found!" });
+    }
+
+    let imagesUrls = existingEventPost.images || [];
+
+    // Properly parse removeImages
+    let removeImages = [];
+    if (req.body.removeImages) {
+      try {
+        removeImages = JSON.parse(req.body.removeImages);
+      } catch (error) {
+        return res.status(400).json({ status: false, message: "Invalid removeImages format!" });
+      }
+    }
+
+    if (Array.isArray(removeImages)) {
+      // Delete the removed images from disk before dropping them from the array
+      const toDelete = imagesUrls.filter((imgUrl) => removeImages.includes(imgUrl));
+      toDelete.forEach((imgUrl) => deleteUploadedFile("images", imgUrl));
+
+      imagesUrls = imagesUrls.filter(
+        (imgUrl) => !removeImages.includes(imgUrl)
+      );
+    }
+
+    // 🔹 Handle newly uploaded images via Multer (local disk)
+    const newFiles = req.files?.images || [];
+    const newImageUrls = newFiles.map((file) => buildFileUrl("images", file.filename));
+    imagesUrls = [...imagesUrls, ...newImageUrls];
+
+    if (imagesUrls.length > 5) {
+      const overflow = imagesUrls.length - 5;
+      const dropped = imagesUrls.slice(0, overflow);
+      dropped.forEach((imgUrl) => deleteUploadedFile("images", imgUrl));
+      imagesUrls = imagesUrls.slice(-5);
+    }
+
+    dataForUpdate.images = imagesUrls;
+
+    const updatedEventPost = await EventPost.findByIdAndUpdate(
+      postId,
+      { $set: dataForUpdate },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: "EventPost updated successfully.",
+      data: updatedEventPost,
+    });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+const updateActivistProfileByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dataForUpdate = { ...req.body };
+    const { knownActivistId, dob } = dataForUpdate;
+
+    // Ensure at least some data to update or a file
+    if (Object.keys(dataForUpdate).length === 0 && !(req.files?.profilePhoto?.length)) {
+      return res.status(400).json({
+        status: false,
+        message: "No data provided for updating the profile!",
+      });
+    }
+
+    // Validate mobile number format
+    const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+    if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid mobile number. Please enter a valid 10-digit mobile number.",
+      });
+    }
+
+    // Validate knownActivistId format
+    if (knownActivistId) {
+      const regex = /^[A-Z]{2}[0-9]{4}$/;
+      if (!regex.test(knownActivistId)) {
+        return res.status(400).json({
+          status: false,
+          message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001'.`,
+        });
+      }
+
+      const isValidKnownActivist = await Activist.findOne({
+        activistId: knownActivistId,
+      });
+      if (!isValidKnownActivist) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid KnownActivistId! Activist not found!",
+        });
+      }
+    }
+
+    // Parse DOB if provided
+    if (dob) {
+      const parsedDob = moment(dob, "DD/MM/YYYY", true);
+      if (!parsedDob.isValid()) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid date format for 'dob'. Expected format is DD/MM/YYYY.",
+        });
+      }
+      dataForUpdate.dob = parsedDob.toDate();
+    }
+
+    // Check if the activist profile exists
+    const existingActivist = await Activist.findById(id);
+    if (!existingActivist) {
+      return res.status(404).json({
+        status: false,
+        message: "Activist profile not found!",
+      });
+    }
+
+    // 🔹 Handle profilePhoto upload via Multer (local disk) — optional, max 1 if provided
+    const profilePhotoFiles = req.files?.profilePhoto || [];
+
+    if (profilePhotoFiles.length > 0) {
+      if (profilePhotoFiles.length > 1) {
+        // Clean up the extra files Multer already wrote to disk before rejecting
+        profilePhotoFiles.forEach((f) => deleteUploadedFile("profilePhoto", f.filename));
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      // Replace the old photo on disk if one already existed
+      if (existingActivist.profilePhoto) {
+        deleteUploadedFile("profilePhoto", existingActivist.profilePhoto);
+      }
+
+      dataForUpdate.profilePhoto = buildFileUrl("profilePhoto", profilePhotoFiles[0].filename);
+    }
+
+    // Perform the update and return updated document
+    const updatedActivist = await Activist.findByIdAndUpdate(
+      id,
+      { $set: dataForUpdate },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: "Activist profile updated successfully.",
+      data: updatedActivist,
+    });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
 
 module.exports = {
   createFirstAdmin,
