@@ -5,15 +5,22 @@ const upload = require('../config/multerConfig');
 
 const router=Router();
 
+const jyotishPhotoUpload = upload.fields([
+  { name: "profilePhoto", maxCount: 1 },
+  { name: "additionalPhotos", maxCount: 5 },
+]);
+
 router.post(
   '/createJyotish',
   verifyToken,
+  jyotishPhotoUpload,
   controller.createJyotishProfile
 );
 
 router.patch(
   '/update-jyotishProfile',
   verifyToken,
+  jyotishPhotoUpload,
   controller.updateJyotishProfile
 );
 router.get("/jyotishProfileData/:id",verifyToken,controller.getJyotishProfileById);
@@ -25,4 +32,3 @@ router.get("/share-jyotishProfile/:id",verifyToken,controller.shareJyotishProfil
 router.delete("/delete-jyotishProfile",verifyToken,controller.deleteJyotishProfile);
 
 module.exports=router;
-

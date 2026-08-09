@@ -1,17 +1,20 @@
 const { Router } = require("express");
 const verifyToken = require("../middlewares/auth");
 const controller = require("../controllers/eventPost");
+const upload = require("../config/multerConfig");
 
 const router = Router();
 
 router.post(
   "/createEventPost",
   verifyToken,
+  upload.array("images", 5),
   controller.createEventPost
 );
 router.patch(
   "/updateEventPost",
   verifyToken,
+  upload.array("images", 5),
   controller.updateEventPost
 );
 router.post("/like", verifyToken, controller.likePost);

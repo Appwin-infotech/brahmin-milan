@@ -3,7 +3,25 @@ const Activist = require("../models/activist");
 const Dharmshala = require("../models/dharmshala");
 const Report = require("../models/report");
 const SavedProfile = require("../models/savedProfiles");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const fs = require("fs");
+const path = require("path");
+
+// Builds the public URL for a file Multer just saved to /uploads
+const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+
+// Deletes a local uploads/ file given its public URL. Safe no-op for
+// non-local (e.g. leftover Cloudinary) URLs or missing files.
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
 
 //create dharmshala profile
 const createDharmshala = async (req, res) => {
@@ -48,42 +66,25 @@ const createDharmshala = async (req, res) => {
       });
     }
 
-    // Ensure images are uploaded via req.files.images
-    if (!req.files?.images || req.files.images.length === 0) {
+    // Ensure images are uploaded (Multer populates req.files as an array)
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         status: false,
         message: "Please provide at least one photo!",
       });
     }
 
-    // 🔹 Upload images to Cloudinary
-    const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-    if (files.length > 5) {
+    if (req.files.length > 5) {
+      // clean up the files Multer already wrote before rejecting the request
+      req.files.forEach((f) => fs.unlink(f.path, () => { }));
       return res.status(400).json({
         status: false,
         message: "You can only upload a maximum of 5 images.",
       });
     }
 
-    const imagesUrls = [];
-    for (let i = 0; i < files.length; i++) {
-      const upload = await uploadImageToCloudinary(
-        files[i],
-        process.env.FOLDER_NAME || "dharmshala",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Image upload failed.",
-        });
-      }
-
-      imagesUrls.push(upload.secure_url);
-    }
+    // 🔹 Build local image URLs from the files Multer already saved to /uploads
+    const imagesUrls = req.files.map((file) => buildImageUrl(file.filename));
 
     // Create new Dharmshala profile
     const newDharmshala = new Dharmshala({
@@ -153,32 +154,16 @@ const updateDharmshala = async (req, res) => {
     }
     if (!Array.isArray(removeImages)) removeImages = [];
 
-    // Remove specified images
-    imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
+    // Remove specified images — and delete the actual local files from disk,
+    // since we're now responsible for storage (Cloudinary used to handle this).
+    imagesUrls = imagesUrls.filter((imgUrl) => {
+      const shouldRemove = removeImages.includes(imgUrl);
+      if (shouldRemove) deleteLocalImage(imgUrl);
+      return !shouldRemove;
+    });
 
-    // 🔹 Handle newly uploaded images via Cloudinary
-    const newUploadedImages = [];
-    if (req.files?.images) {
-      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-      for (let i = 0; i < files.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          files[i],
-          process.env.FOLDER_NAME || "dharmshala",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Image upload failed.",
-          });
-        }
-
-        newUploadedImages.push(upload.secure_url);
-      }
-    }
+    // 🔹 Build local image URLs from newly uploaded files
+    const newUploadedImages = (req.files || []).map((file) => buildImageUrl(file.filename));
 
     // Replace removed images with new ones
     while (removeImages.length > 0 && newUploadedImages.length > 0) {
@@ -189,6 +174,9 @@ const updateDharmshala = async (req, res) => {
     // Append remaining new images (limit total to 5)
     imagesUrls = [...imagesUrls, ...newUploadedImages];
     if (imagesUrls.length > 5) {
+      // delete files for any images being dropped due to the 5-image cap
+      const overflow = imagesUrls.slice(0, imagesUrls.length - 5);
+      overflow.forEach(deleteLocalImage);
       imagesUrls = imagesUrls.slice(-5);
     }
 
@@ -199,13 +187,6 @@ const updateDharmshala = async (req, res) => {
       { $set: dataForUpdate },
       { new: true }
     );
-
-    if (updatedDharmshala.modifiedCount === 0) {
-      return res.status(400).json({
-        status: false,
-        message: "No changes were made to the Dharmshala.",
-      });
-    }
 
     return res.status(200).json({
       status: true,
@@ -381,6 +362,11 @@ const deleteDharmshalaProfile = async (req, res) => {
 
     if (failedDeletions.length > 0) {
       console.error("Some deletions failed:", failedDeletions);
+    }
+
+    // Clean up local image files now that we own storage
+    if (Array.isArray(exitsDharmshala.images)) {
+      exitsDharmshala.images.forEach(deleteLocalImage);
     }
 
     return res.status(200).json({

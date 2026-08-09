@@ -1,12 +1,3 @@
-/**
- * activityStatusCron.js
- * Runs every hour — auto-deactivates profiles whose activeEndDate has passed.
- * Place in config/ or utils/ and require it once in index.js.
- *
- * Usage in index.js:
- *   require('./config/activityStatusCron');
- */
-
 const cron = require("node-cron");
 const Biodata = require("../models/biodata");
 

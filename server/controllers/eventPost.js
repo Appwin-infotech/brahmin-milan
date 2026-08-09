@@ -3,7 +3,22 @@ const EventPost = require("../models/eventPost");
 const Notification = require("../models/notification");
 const { getConnectedUsers, getIO, sendNotificationToAdmin } = require("../socket/socket.server");
 const Admin = require("../models/admin");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const fs = require("fs");
+const path = require("path");
+
+const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
 
 //create a eventPost
 const createEventPost = async (req, res) => {
@@ -29,34 +44,20 @@ const createEventPost = async (req, res) => {
       });
     }
 
-    // 🔹 Upload eventPost images to Cloudinary
+    // 🔹 Build local image URLs from the files Multer already saved to /uploads
     const imagesUrls = [];
-    if (req.files?.images) {
-      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-      if (files.length > 5) {
+    if (req.files && req.files.length > 0) {
+      if (req.files.length > 5) {
+        // clean up the files Multer already wrote before rejecting the request
+        req.files.forEach((f) => fs.unlink(f.path, () => {}));
         return res.status(400).json({
           status: false,
           message: "You can only upload a maximum of 5 images.",
         });
       }
 
-      for (let i = 0; i < files.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          files[i],
-          process.env.FOLDER_NAME || "eventPosts",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Image upload failed.",
-          });
-        }
-
-        imagesUrls.push(upload.secure_url);
+      for (const file of req.files) {
+        imagesUrls.push(buildImageUrl(file.filename));
       }
     }
 
@@ -289,11 +290,8 @@ const viewEventPost = async (req, res) => {
 
 const updateEventPost = async (req, res) => {
   try {
-    console.log("Request Body:");
     const userId = req?.user?._id;
-    console.log("User ID:", userId);
     const dataForUpdate = req?.body;
-    console.log("Data for Update:", dataForUpdate);
 
     const { postId } = dataForUpdate;
 
@@ -339,30 +337,19 @@ const updateEventPost = async (req, res) => {
     // Start from existing images
     let imagesUrls = existingEventPost.images || [];
 
-    // Remove specified images
-    imagesUrls = imagesUrls.filter((imgUrl) => !removeImages.includes(imgUrl));
+    // Remove specified images — and delete the actual local files from disk,
+    // since we're now responsible for storage (Cloudinary used to handle this).
+    imagesUrls = imagesUrls.filter((imgUrl) => {
+      const shouldRemove = removeImages.includes(imgUrl);
+      if (shouldRemove) deleteLocalImage(imgUrl);
+      return !shouldRemove;
+    });
 
-    // 🔹 Handle newly uploaded images via Cloudinary
+    // 🔹 Build local image URLs from newly uploaded files
     const newUploadedImages = [];
-    if (req.files?.images) {
-      const files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-
-      for (let i = 0; i < files.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          files[i],
-          process.env.FOLDER_NAME || "eventPosts",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Image upload failed.",
-          });
-        }
-
-        newUploadedImages.push(upload.secure_url);
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        newUploadedImages.push(buildImageUrl(file.filename));
       }
     }
 
@@ -375,6 +362,9 @@ const updateEventPost = async (req, res) => {
     // Append any remaining new images (while enforcing a max limit of 5)
     imagesUrls = [...imagesUrls, ...newUploadedImages];
     if (imagesUrls.length > 5) {
+      // delete files for any images being dropped due to the 5-image cap
+      const overflow = imagesUrls.slice(0, imagesUrls.length - 5);
+      overflow.forEach(deleteLocalImage);
       imagesUrls = imagesUrls.slice(-5);
     }
 
@@ -704,6 +694,11 @@ const deleteEventPost = async (req, res) => {
     // Check if any document was deleted
     if (!deletedPost) {
       return res.status(400).json({ status: false, message: "Failed to delete the Event Post." });
+    }
+
+    // Clean up local image files now that we own storage
+    if (Array.isArray(deletedPost.images)) {
+      deletedPost.images.forEach(deleteLocalImage);
     }
 
     // Delete all notifications of types eventPostCreated, like, comment related to this post

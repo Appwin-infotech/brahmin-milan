@@ -5,10 +5,16 @@ const upload = require('../config/multerConfig');
 
 const router=Router();
 
+const kathavachakPhotoUpload = upload.fields([
+  { name: "profilePhoto", maxCount: 1 },
+  { name: "additionalPhotos", maxCount: 5 },
+]);
+
 // Create Kathavachak Profile
 router.post(
   '/createKathavachak',
   verifyToken,
+  kathavachakPhotoUpload,
   controller.createKathavachakProfile
 );
 
@@ -16,6 +22,7 @@ router.post(
 router.patch(
   '/update-kathavachakProfile',
   verifyToken,
+  kathavachakPhotoUpload,
   controller.updateKathavachakProfile
 );
 

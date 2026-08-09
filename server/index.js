@@ -1,18 +1,17 @@
 const express = require("express");
 const cors = require("cors");
+const multer = require('multer');
 
 const dotenv = require("dotenv");
-const bodyParser = require("body-parser");
-const fileUpload = require("express-fileupload");
+dotenv.config();
 
 const database = require("./config/database");
-const { cloudinaryConnect } = require("./config/cloudinary");
 
 const { initializeSocket } = require("./socket/socket.server")
 
-dotenv.config();
 const cookieParser = require("cookie-parser");
 require('./config/subscriptionChecker');
+
 const userRoute = require('./routes/user')
 const panditRoute = require("./routes/pandit")
 const kathavachakRoute = require("./routes/kathavachak")
@@ -33,11 +32,10 @@ const contactRoutes = require("./routes/contactRoutes");
 const notificationRouter = require("./routes/notification");
 const PORT = process.env.PORT || 5000;
 const { createServer } = require("http");
+const path = require('path');
 
 const app = express();
 const httpServer = createServer(app);
-
-dotenv.config();
 
 database.connect();
 
@@ -73,20 +71,10 @@ app.use(
 //initializeSocket 
 initializeSocket(httpServer);
 
-app.use(
-  fileUpload({
-    useTempFiles: true,
-    tempFileDir: "/tmp/",
-  })
-);
-
-cloudinaryConnect();
+// Serve static files from the "uploads" directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // routes
-const path = require('path');
-
-// Serve static files from the "uploads" directory
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/v1/user', userRoute);
 app.use('/api/v1/biodata', biodataRouter);
 app.use('/api/v1/pandit', panditRoute);
@@ -112,6 +100,18 @@ app.get("/", (req, res) => {
     success: true,
     message: "Your server is up and running...",
   });
+});
+
+// Handle Multer errors (file too large, bad file type, too many files, etc.)
+// cleanly instead of letting them crash as raw 500s.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || (err && err.message && err.message.includes("Invalid file type"))) {
+    return res.status(400).json({
+      status: false,
+      message: err.message,
+    });
+  }
+  next(err);
 });
 
 httpServer.listen(PORT, () => {

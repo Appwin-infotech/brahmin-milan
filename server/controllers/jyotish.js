@@ -7,7 +7,25 @@ const User = require("../models/user");
 const Admin = require("../models/admin");
 const Notification = require("../models/notification");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const fs = require("fs");
+const path = require("path");
+
+// Builds the public URL for a file Multer just saved to /uploads
+const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+
+// Deletes a local uploads/ file given its public URL. Safe no-op for
+// non-local (e.g. leftover Cloudinary) URLs or missing files.
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
 
 const createJyotishProfile = async (req, res) => {
   try {
@@ -100,68 +118,36 @@ const createJyotishProfile = async (req, res) => {
       });
     }
 
-    // 🔹 Validate profilePhoto - max 1
+    // 🔹 profilePhoto - max 1 (Multer populates req.files.profilePhoto as an array)
     let photoUrlPath = null;
     if (req.files?.profilePhoto) {
-      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
+      const profilePhotoFiles = req.files.profilePhoto;
 
       if (profilePhotoFiles.length > 1) {
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
         return res.status(400).json({
           status: false,
           message: "Only 1 profile photo is allowed.",
         });
       }
 
-      const upload = await uploadImageToCloudinary(
-        profilePhotoFiles[0],
-        process.env.FOLDER_NAME || "jyotish",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Profile photo upload failed.",
-        });
-      }
-
-      photoUrlPath = upload.secure_url;
+      photoUrlPath = buildImageUrl(profilePhotoFiles[0].filename);
     }
 
-    // 🔹 Validate additionalPhotos - max 5
-    const additionalPhotosUrls = [];
+    // 🔹 additionalPhotos - max 5
+    let additionalPhotosUrls = [];
     if (req.files?.additionalPhotos) {
-      const additionalFiles = Array.isArray(req.files.additionalPhotos)
-        ? req.files.additionalPhotos
-        : [req.files.additionalPhotos];
+      const additionalFiles = req.files.additionalPhotos;
 
       if (additionalFiles.length > 5) {
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
         return res.status(400).json({
           status: false,
           message: "You can only upload a maximum of 5 additional photos.",
         });
       }
 
-      for (let i = 0; i < additionalFiles.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          additionalFiles[i],
-          process.env.FOLDER_NAME || "jyotish",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Additional photo upload failed.",
-          });
-        }
-
-        additionalPhotosUrls.push(upload.secure_url);
-      }
+      additionalPhotosUrls = additionalFiles.map((file) => buildImageUrl(file.filename));
     }
 
     // ✅ Create Jyotish Profile
@@ -273,78 +259,53 @@ const updateJyotishProfile = async (req, res) => {
       }
     }
 
-    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
-    if (req.files?.profilePhoto) {
-      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
-
-      if (profilePhotoFiles.length > 1) {
-        return res.status(400).json({
-          status: false,
-          message: "Only 1 profile photo is allowed.",
-        });
-      }
-
-      const upload = await uploadImageToCloudinary(
-        profilePhotoFiles[0],
-        process.env.FOLDER_NAME || "jyotish",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Profile photo upload failed.",
-        });
-      }
-
-      dataForUpdate.profilePhoto = upload.secure_url;
-    }
-
-    // 🔹 Handle additionalPhotos upload via Cloudinary - max 5
-    if (req.files?.additionalPhotos) {
-      const additionalFiles = Array.isArray(req.files.additionalPhotos)
-        ? req.files.additionalPhotos
-        : [req.files.additionalPhotos];
-
-      if (additionalFiles.length > 5) {
-        return res.status(400).json({
-          status: false,
-          message: "You can only upload a maximum of 5 additional photos.",
-        });
-      }
-
-      const additionalPhotosUrls = [];
-      for (let i = 0; i < additionalFiles.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          additionalFiles[i],
-          process.env.FOLDER_NAME || "jyotish",
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Additional photo upload failed.",
-          });
-        }
-
-        additionalPhotosUrls.push(upload.secure_url);
-      }
-
-      dataForUpdate.additionalPhotos = additionalPhotosUrls;
-    }
-
-    //check if JyotishRequest profile exists
+    //check if JyotishRequest profile exists (fetched early so we can clean up old files)
     const existingJyotish = await Jyotish.findOne({ userId: userId });
 
     if (!existingJyotish) {
       return res
         .status(400)
         .json({ status: false, message: "Jyotish Profile Not Found!" });
+    }
+
+    // 🔹 Handle profilePhoto upload - max 1
+    if (req.files?.profilePhoto) {
+      const profilePhotoFiles = req.files.profilePhoto;
+
+      if (profilePhotoFiles.length > 1) {
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        return res.status(400).json({
+          status: false,
+          message: "Only 1 profile photo is allowed.",
+        });
+      }
+
+      // old profile photo is being replaced — remove it from disk
+      if (existingJyotish.profilePhoto) {
+        deleteLocalImage(existingJyotish.profilePhoto);
+      }
+
+      dataForUpdate.profilePhoto = buildImageUrl(profilePhotoFiles[0].filename);
+    }
+
+    // 🔹 Handle additionalPhotos upload - max 5
+    if (req.files?.additionalPhotos) {
+      const additionalFiles = req.files.additionalPhotos;
+
+      if (additionalFiles.length > 5) {
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        return res.status(400).json({
+          status: false,
+          message: "You can only upload a maximum of 5 additional photos.",
+        });
+      }
+
+      // old additional photos are being replaced — remove them from disk
+      if (Array.isArray(existingJyotish.additionalPhotos)) {
+        existingJyotish.additionalPhotos.forEach(deleteLocalImage);
+      }
+
+      dataForUpdate.additionalPhotos = additionalFiles.map((file) => buildImageUrl(file.filename));
     }
 
     //update JyotishRequest profile
@@ -584,205 +545,6 @@ const updateJyotishReviewRating = async (req, res) => {
     res.status(500).json({ status: false, error: err.message });
   }
 };
-
-// Get All Jyotishs with their average rating and total number of reviews
-// const getAllJyotish = async (req, res) => {
-//   try {
-//     const userId = req?.user?._id; // Get the logged-in user's ID
-
-//     // Extract filters from query params
-//     const { locality, services, rating, experience } = req.query;
-
-//     // Step 1: ✅ Get userIds with active Jyotish subscription
-//     const activeJyotishUsers = await User.find({
-//       serviceSubscriptions: {
-//         $elemMatch: {
-//           serviceType: "Jyotish",
-//           status: "Active",
-//           startDate: { $lte: new Date() },
-//           endDate: { $gte: new Date() },
-//         },
-//       },
-//     }).select("_id");
-
-//     const activeUserIds = activeJyotishUsers.map((user) => user._id);
-
-//     // Step 2: Prepare filter conditions for jyotish profiles
-//     let filterConditions = {
-//       isEnabled: true,
-//       userId: { $in: activeUserIds }, // ✅ Only allow profiles of users with active Jyotish subscription
-//     };
-
-//     // Apply locality filter (case-insensitive search)
-//     if (locality) {
-//       filterConditions.city = { $regex: locality, $options: "i" }; // Case-insensitive search for locality
-//     }
-
-//     // Apply services filter (check if the Jyotish offers certain services)
-//     if (services) {
-//       const servicesArray = services.split(","); // Assuming services are passed as comma-separated values
-//       filterConditions.jyotishServices = { $in: servicesArray };
-//     }
-
-
-//    // Rating range logic
-//     // let ratingMatch = {};
-//     // const r = parseInt(rating);
-//     // if (r === 5) ratingMatch = { $gte: 4.1, $lte: 5 };
-//     // else if (r === 4) ratingMatch = { $gte: 3.1, $lt: 4.1 };
-//     // else if (r === 3) ratingMatch = { $gte: 2.1, $lt: 3.1 };
-//     // else if (r === 2) ratingMatch = { $gte: 1.1, $lt: 2.1 };
-//     // else if (r === 1) ratingMatch = { $eq: 1 };
-       
-//     // Rating filter logic
-// let ratingMatch = {};
-// if (rating) {
-//   ratingMatch = { $gte: parseFloat(rating) };
-// }
-
-//     // Aggregation pipeline for getting Jyotish profiles with their ratings and reviews
-//     const jyotishs = await Jyotish.aggregate([
-//       {
-//         $match: filterConditions, // Apply filter conditions to Jyotish profiles
-//       },
-//       {
-//         $sort: { createdAt: -1 }, // 👈 Sort by latest profile
-//       },
-//       {
-//         $lookup: {
-//           from: "ratings", // Ratings collection
-//           localField: "_id", // Reference to Jyotish's _id
-//           foreignField: "entityId", // Rating's field referring to Jyotish (entityId)
-//           pipeline: [
-//             {
-//               $match: { entityType: "Jyotish" }, // Only include ratings for Jyotishs
-//             },
-//             {
-//               $project: { rating: 1, review: 1, userId: 1 }, // Include rating, review, and userId
-//             },
-//           ],
-//           as: "reviews", // Alias for the resulting array of reviews
-//         },
-//       },
-//       {
-//         $addFields: {
-//           totalReviews: { $size: "$reviews" }, // Count the total number of reviews
-//           averageRating: {
-//             $cond: {
-//               if: { $gt: [{ $size: "$reviews" }, 0] }, // If reviews exist
-//               then: { $avg: "$reviews.rating" }, // Calculate average rating
-//               else: 0, // If no reviews, set to 0
-//             },
-//           },
-//         },
-//       },
-//       // Round the averageRating to 1 decimal place
-//       {
-//         $addFields: {
-//           averageRating: { $round: ["$averageRating", 1] }, // Round to 1 decimal place
-//         },
-//       },
-//       // Filter by exact match on averageRating if the rating query param is provided
-//       ...(rating
-//         ? [
-//             {
-//               $match: {
-//                 averageRating: ratingMatch,
-//               },
-//             },
-//             {
-//               $sort: { averageRating: -1 }, // ✅ Sort by rating if filter applied
-//             },
-//           ]
-//         : [
-//             {
-//               $sort: { createdAt: -1 }, // ✅ Default sort
-//             },
-//           ]),
-//       {
-//         $project: {
-//           reviews: 0, // Optionally remove the 'reviews' field from the output
-//         },
-//       },
-
-//       // Add the `isSaved` flag to each Jyotish profile
-//       {
-//         $lookup: {
-//           from: "savedprofiles", // SavedProfiles collection
-//           let: { jyotishId: "$_id" }, // Reference to the Jyotish's _id
-//           pipeline: [
-//             {
-//               $match: {
-//                 $expr: {
-//                   $and: [
-//                     { $eq: ["$userId", userId] }, // Match the logged-in user
-//                     { $eq: ["$saveProfile", "$$jyotishId"] }, // Match saved profile
-//                   ],
-//                 },
-//               },
-//             },
-//             {
-//               $limit: 1, // We only need to know if it's saved or not
-//             },
-//           ],
-//           as: "saved",
-//         },
-//       },
-//       {
-//         $addFields: {
-//           isSaved: { $gt: [{ $size: "$saved" }, 0] }, // If there's a matching saved profile, set `isSaved` to true
-//         },
-//       },
-//       {
-//         $project: {
-//           saved: 0, // Optionally remove the 'saved' field
-//         },
-//       },
-//          ...(experience
-//   ? [
-//       {
-//         $match: {
-//           $expr: {
-//             $gte: [{ $toInt: "$experience" }, parseInt(experience)],
-//           },
-//         },
-//       },
-//       {
-//         $addFields: {
-//           experienceNum: { $toInt: "$experience" },
-//         },
-//       },
-//       {
-//         $sort: { experienceNum: 1 }, // ✅ sort by experience only if filtering
-//       },
-//     ]
-//   : [
-//       {
-//         $sort: { createdAt: -1 }, // ✅ Default sort if no experience filter
-//       },
-//     ]),
-//     ]);
-
-//     // If no Jyotishs found or no reviews
-//     if (!jyotishs || jyotishs.length === 0) {
-//       return res.status(400).json({
-//         status: false,
-//         message: "Jyotish reviews & ratings not available yet.",
-//       });
-//     }
-
-//     // Return the data with success
-//     return res.status(200).json({
-//       status: true,
-//       data: jyotishs,
-//     });
-//   } catch (err) {
-//     res.status(500).json({
-//       status: false,
-//       error: err.message || "Something went wrong.",
-//     });
-//   }
-// };
 
 const getAllJyotish = async (req, res) => {
   try {
@@ -1081,6 +843,12 @@ const deleteJyotishProfile = async (req, res) => {
 
     if (failedDeletions.length > 0) {
       console.error("Some deletions failed:", failedDeletions);
+    }
+
+    // Clean up local image files now that we own storage
+    if (exitsJyotish.profilePhoto) deleteLocalImage(exitsJyotish.profilePhoto);
+    if (Array.isArray(exitsJyotish.additionalPhotos)) {
+      exitsJyotish.additionalPhotos.forEach(deleteLocalImage);
     }
 
     // Mark the isJyotish as false after successful deletion
