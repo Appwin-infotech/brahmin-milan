@@ -1,6 +1,5 @@
 const Activist = require("../models/activist");
 const moment = require("moment");
-const cloudinary = require("cloudinary").v2;
 const ActivistRequest = require("../models/activistRequest");
 const User = require("../models/user");
 const Biodata = require("../models/biodata");
@@ -11,7 +10,12 @@ const SavedProfile = require("../models/savedProfiles");
 const Admin = require("../models/admin");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
 const Notification = require("../models/notification");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+
+const BASE_URL = process.env.BASE_URL;
+
+function buildStoredUrl(filename) {
+  return `${BASE_URL}/uploads/${filename}`;
+}
 
 const createActivistProfileRequest = async (req, res) => {
   try {
@@ -43,22 +47,10 @@ const createActivistProfileRequest = async (req, res) => {
     }
 
     // Validate that profilePhoto file is present
-    if (!req.files?.profilePhoto) {
+    if (!req.file) {
       return res.status(400).json({
         status: false,
         message: "Profile Photo is required!",
-      });
-    }
-
-    // 🔹 Enforce exactly 1 profile photo
-    const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-      ? req.files.profilePhoto
-      : [req.files.profilePhoto];
-
-    if (profilePhotoFiles.length > 1) {
-      return res.status(400).json({
-        status: false,
-        message: "Only 1 profile photo is allowed.",
       });
     }
 
@@ -134,22 +126,8 @@ const createActivistProfileRequest = async (req, res) => {
       });
     }
 
-    // 🔹 Handle profilePhoto upload via Cloudinary
-    const upload = await uploadImageToCloudinary(
-      profilePhotoFiles[0],
-      process.env.FOLDER_NAME || "activist",
-      1200,
-      600
-    );
-
-    if (!upload?.secure_url) {
-      return res.status(500).json({
-        status: false,
-        message: "Image upload failed.",
-      });
-    }
-
-    const photoUrlPath = upload.secure_url;
+    // 🔹 profilePhoto already saved to disk by multer — build the stored URL
+    const photoUrlPath = buildStoredUrl(req.file.filename);
 
     // Create new ActivistRequest object
     const newActivistRequest = new ActivistRequest({
@@ -218,7 +196,7 @@ const updateActivistProfile = async (req, res) => {
     const { knownActivistId, dob } = dataForUpdate;
 
     // Ensure there is at least some data to update or a file
-    if (Object.keys(dataForUpdate).length === 0 && !req.files?.profilePhoto) {
+    if (Object.keys(dataForUpdate).length === 0 && !req.file) {
       return res.status(400).json({
         status: false,
         message: "No data provided for updating the profile!",
@@ -273,34 +251,9 @@ const updateActivistProfile = async (req, res) => {
       });
     }
 
-    // 🔹 Handle profilePhoto upload via Cloudinary (optional, but max 1 if provided)
-    if (req.files?.profilePhoto) {
-      const files = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
-
-      if (files.length > 1) {
-        return res.status(400).json({
-          status: false,
-          message: "Only 1 profile photo is allowed.",
-        });
-      }
-
-      const upload = await uploadImageToCloudinary(
-        files[0],
-        process.env.FOLDER_NAME || "activist",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Image upload failed.",
-        });
-      }
-
-      dataForUpdate.profilePhoto = upload.secure_url;
+    // 🔹 profilePhoto already saved to disk by multer (optional on update)
+    if (req.file) {
+      dataForUpdate.profilePhoto = buildStoredUrl(req.file.filename);
     }
 
     // Perform the update
@@ -327,17 +280,15 @@ const updateActivistProfile = async (req, res) => {
 
 const verifyMetrimonialProfile = async (req, res) => {
   try {
-    const { _id: userId, role } = req.user; // ✅ extract role from token (e.g. "admin" or "user")
+    const { _id: userId, role } = req.user;
     const { bioDataId } = req.params;
 
-    // ✅ Check if caller is admin or activist
-    const isAdmin = role === "admin"; // adjust "admin" to match your actual role value in JWT
+    const isAdmin = role === "admin";
 
     let activistId = null;
     let verifierName = "Admin";
 
     if (!isAdmin) {
-      // ✅ Not admin — must be a valid activist
       const validActivist = await Activist.findOne({ userId });
 
       if (!validActivist) {
@@ -351,7 +302,6 @@ const verifyMetrimonialProfile = async (req, res) => {
       verifierName = validActivist.fullname;
     }
 
-    // Check if the matrimonial profile exists
     const matrimonialProfile = await Biodata.findOne({ bioDataId });
 
     if (!matrimonialProfile) {
@@ -361,7 +311,6 @@ const verifyMetrimonialProfile = async (req, res) => {
       });
     }
 
-    // ✅ If already verified by an activist, only that activist OR admin can unverify
     if (
       matrimonialProfile.verified === true &&
       matrimonialProfile.verifiedBy &&
@@ -378,10 +327,8 @@ const verifyMetrimonialProfile = async (req, res) => {
       }
     }
 
-    // ✅ Toggle verify status
     if (matrimonialProfile.verified === false) {
       matrimonialProfile.verified = true;
-      // Admin verifiedBy stays null (admins don't have activist profiles)
       matrimonialProfile.verifiedBy = isAdmin ? null : activistId;
       await matrimonialProfile.save();
 
@@ -412,7 +359,6 @@ const viewActivist = async (req, res) => {
     const userId = req?.user?._id;
     const activist = await Activist.findOne({ userId });
 
-    //if Activist Profile is not exists then
     if (!activist) {
       return res
         .status(400)
@@ -433,32 +379,24 @@ const viewActivist = async (req, res) => {
 const getAllActivist = async (req, res) => {
   try {
     const userId = req?.user?._id;
-    // Extract filters from query params
     const { locality, subCaste } = req.query;
 
-    // Prepare filter conditions for the Pandit profiles
-    let filterConditions = {
-      // userId: { $ne: userId }, // Exclude the logged-in user's profile
-    };
+    let filterConditions = {};
 
-    // Apply locality filter (check both state and city)
     if (locality) {
       filterConditions.$or = [
-        { state: { $regex: locality, $options: "i" } }, // Match locality with state
-        { city: { $regex: locality, $options: "i" } }, // Match locality with city
+        { state: { $regex: locality, $options: "i" } },
+        { city: { $regex: locality, $options: "i" } },
       ];
     }
-    // Apply subCaste filter (case-insensitive search)
     if (subCaste) {
-      filterConditions.subCaste = { $regex: `^${subCaste}`, $options: "i" }; // Case-insensitive search for subCaste
+      filterConditions.subCaste = { $regex: `^${subCaste}`, $options: "i" };
     }
 
-    // Fetch all Pandit profiles that match the filter conditions
     const activists = await Activist.find(filterConditions).sort({
       createdAt: -1,
     });
 
-    // if no Pandit profiles match the filter conditions then
     if (!activists.length) {
       return res
         .status(400)
@@ -474,8 +412,6 @@ const getAllActivist = async (req, res) => {
     return res.status(500).json({ status: false, message: err.message });
   }
 };
-
-
 
 const fetchActivistForAdmin = async (req, res) => {
   try {
@@ -505,11 +441,10 @@ const fetchActivistForAdmin = async (req, res) => {
       }
     }
 
-    // Apply locality filter (check both state and city)
     if (locality) {
       filterConditions.$or = [
-        { state: { $regex: locality, $options: "i" } }, // Match locality with state
-        { city: { $regex: locality, $options: "i" } }, // Match locality with city
+        { state: { $regex: locality, $options: "i" } },
+        { city: { $regex: locality, $options: "i" } },
       ];
     }
 

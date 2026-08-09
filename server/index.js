@@ -102,8 +102,6 @@ app.get("/", (req, res) => {
   });
 });
 
-// Handle Multer errors (file too large, bad file type, too many files, etc.)
-// cleanly instead of letting them crash as raw 500s.
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || (err && err.message && err.message.includes("Invalid file type"))) {
     return res.status(400).json({
