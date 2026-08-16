@@ -5,8 +5,9 @@ const { getConnectedUsers, getIO, sendNotificationToAdmin } = require("../socket
 const Admin = require("../models/admin");
 const fs = require("fs");
 const path = require("path");
+const { BASE_URL } = require("../utils/constants");
 
-const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
 
 const deleteLocalImage = (imageUrl) => {
   if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
@@ -122,6 +123,107 @@ const createEventPost = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+//update a eventPost
+const updateEventPost = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    const dataForUpdate = req?.body;
+
+    const { postId } = dataForUpdate;
+
+    if (!postId) {
+      return res.status(400).json({
+        status: false,
+        message: "Post ID is required for updating!",
+      });
+    }
+
+    // Get activist profile of logged-in user
+    const activist = await Activist.findOne({ userId });
+    if (!activist) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid Update Request! Activist Profile not Found!",
+      });
+    }
+
+    // Check if event post exists
+    const existingEventPost = await EventPost.findById(postId);
+    if (!existingEventPost) {
+      return res.status(400).json({
+        status: false,
+        message: "Event Post Not Found!",
+      });
+    }
+
+    // Parse removeImages safely
+    let removeImages = req.body.removeImages;
+    if (typeof removeImages === "string") {
+      try {
+        removeImages = JSON.parse(removeImages);
+      } catch (err) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
+        });
+      }
+    }
+    if (!Array.isArray(removeImages)) removeImages = [];
+
+    // Start from existing images
+    let imagesUrls = existingEventPost.images || [];
+
+    // Remove specified images — and delete the actual local files from disk,
+    // since we're now responsible for storage (Cloudinary used to handle this).
+    imagesUrls = imagesUrls.filter((imgUrl) => {
+      const shouldRemove = removeImages.includes(imgUrl);
+      if (shouldRemove) deleteLocalImage(imgUrl);
+      return !shouldRemove;
+    });
+
+    // 🔹 Build local image URLs from newly uploaded files
+    const newUploadedImages = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        newUploadedImages.push(buildImageUrl(file.filename));
+      }
+    }
+
+    // Replace removed images with new ones (if available)
+    while (removeImages.length > 0 && newUploadedImages.length > 0) {
+      imagesUrls.push(newUploadedImages.shift());
+      removeImages.shift();
+    }
+
+    // Append any remaining new images (while enforcing a max limit of 5)
+    imagesUrls = [...imagesUrls, ...newUploadedImages];
+    if (imagesUrls.length > 5) {
+      // delete files for any images being dropped due to the 5-image cap
+      const overflow = imagesUrls.slice(0, imagesUrls.length - 5);
+      overflow.forEach(deleteLocalImage);
+      imagesUrls = imagesUrls.slice(-5);
+    }
+
+    // Set imagesUrls in dataForUpdate
+    dataForUpdate.images = imagesUrls;
+
+    // Perform the update
+    const updatedEventPost = await EventPost.findByIdAndUpdate(
+      postId,
+      { $set: dataForUpdate },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: "Event Post updated successfully.",
+      data: updatedEventPost,
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
   }
 };
 
@@ -283,106 +385,6 @@ const viewEventPost = async (req, res) => {
       }
     });
 
-  } catch (err) {
-    return res.status(500).json({ status: false, message: err.message });
-  }
-};
-
-const updateEventPost = async (req, res) => {
-  try {
-    const userId = req?.user?._id;
-    const dataForUpdate = req?.body;
-
-    const { postId } = dataForUpdate;
-
-    if (!postId) {
-      return res.status(400).json({
-        status: false,
-        message: "Post ID is required for updating!",
-      });
-    }
-
-    // Get activist profile of logged-in user
-    const activist = await Activist.findOne({ userId });
-    if (!activist) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid Update Request! Activist Profile not Found!",
-      });
-    }
-
-    // Check if event post exists
-    const existingEventPost = await EventPost.findById(postId);
-    if (!existingEventPost) {
-      return res.status(400).json({
-        status: false,
-        message: "Event Post Not Found!",
-      });
-    }
-
-    // Parse removeImages safely
-    let removeImages = req.body.removeImages;
-    if (typeof removeImages === "string") {
-      try {
-        removeImages = JSON.parse(removeImages);
-      } catch (err) {
-        return res.status(400).json({
-          status: false,
-          message: "Invalid format for removeImages. It should be a JSON array of image URLs.",
-        });
-      }
-    }
-    if (!Array.isArray(removeImages)) removeImages = [];
-
-    // Start from existing images
-    let imagesUrls = existingEventPost.images || [];
-
-    // Remove specified images — and delete the actual local files from disk,
-    // since we're now responsible for storage (Cloudinary used to handle this).
-    imagesUrls = imagesUrls.filter((imgUrl) => {
-      const shouldRemove = removeImages.includes(imgUrl);
-      if (shouldRemove) deleteLocalImage(imgUrl);
-      return !shouldRemove;
-    });
-
-    // 🔹 Build local image URLs from newly uploaded files
-    const newUploadedImages = [];
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        newUploadedImages.push(buildImageUrl(file.filename));
-      }
-    }
-
-    // Replace removed images with new ones (if available)
-    while (removeImages.length > 0 && newUploadedImages.length > 0) {
-      imagesUrls.push(newUploadedImages.shift());
-      removeImages.shift();
-    }
-
-    // Append any remaining new images (while enforcing a max limit of 5)
-    imagesUrls = [...imagesUrls, ...newUploadedImages];
-    if (imagesUrls.length > 5) {
-      // delete files for any images being dropped due to the 5-image cap
-      const overflow = imagesUrls.slice(0, imagesUrls.length - 5);
-      overflow.forEach(deleteLocalImage);
-      imagesUrls = imagesUrls.slice(-5);
-    }
-
-    // Set imagesUrls in dataForUpdate
-    dataForUpdate.images = imagesUrls;
-
-    // Perform the update
-    const updatedEventPost = await EventPost.findByIdAndUpdate(
-      postId,
-      { $set: dataForUpdate },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      status: true,
-      message: "Event Post updated successfully.",
-      data: updatedEventPost,
-    });
   } catch (err) {
     return res.status(500).json({ status: false, message: err.message });
   }
