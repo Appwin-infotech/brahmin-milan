@@ -8,17 +8,17 @@ const { getConnectedUsers, getIO } = require("../socket/socket.server");
 //send connection request to user ["ignore","interested"]
 const sendRequest = async (req, res) => {
   try {
-    const {_id:fromUserId} = req?.user;
+    const { _id: fromUserId } = req?.user;
     const status = req?.params?.status;
     const toUserId = req?.params?.userId;
-    let socketIssue = ""; 
-    
+    let socketIssue = "";
+
     // Allowed status types for the connection request
     const allowedStatus = ["ignore", "interested"];
 
     // Validate status parameter
     if (!status || !allowedStatus.includes(status)) {
-      return res.status(400).json({status: false, message: `Invalid Status type: ${status}. Allowed values are ${allowedStatus.join(', ')}` });
+      return res.status(400).json({ status: false, message: `Invalid Status type: ${status}. Allowed values are ${allowedStatus.join(', ')}` });
     }
 
     // Check if a connection request already exists between the two users
@@ -32,10 +32,10 @@ const sendRequest = async (req, res) => {
     // Check if the logged-in user has a biodata
     const loggedInUser = await Biodata.findOne({ userId: fromUserId });
     if (!loggedInUser) {
-      return res.status(400).json({status: false, message: "You need to create your biodata first before sending a connection request." });
+      return res.status(400).json({ status: false, message: "You need to create your biodata first before sending a connection request." });
     }
 
-        // Check if logged-in user's biodata is deactivated by admin
+    // Check if logged-in user's biodata is deactivated by admin
     if (loggedInUser.activityStatus === "Inactive") {
       return res.status(400).json({
         status: false,
@@ -48,12 +48,12 @@ const sendRequest = async (req, res) => {
     // Check if the target user has a biodata
     const toUser = await Biodata.findOne({ userId: toUserId });
     if (!toUser) {
-      return res.status(400).json({status: false, message: "The user you are trying to connect with does not have biodata yet." });
+      return res.status(400).json({ status: false, message: "The user you are trying to connect with does not have biodata yet." });
     }
 
     // If a connection request already exists, return an error
     if (existingConnectionRequest) {
-      return res.status(400).json({status: false, message: "A connection request already exists between these users." });
+      return res.status(400).json({ status: false, message: "A connection request already exists between these users." });
     }
 
     // Create a new connection request
@@ -67,7 +67,7 @@ const sendRequest = async (req, res) => {
 
     // Send notification to the user who is receiving the connection request (toUserId)
     const fromUser = await Biodata.findOne({ userId: fromUserId }); // Get details of the user who is sending the request
-  
+
     const notificationMessage = `${fromUser?.personalDetails?.fullname} sent you a connection request!`;
 
     // Create the notification for the receiving user (toUserId)
@@ -84,36 +84,36 @@ const sendRequest = async (req, res) => {
       message: notificationMessage,
     });
 
-           // Optionally, send a real-time notification to the user who sent the request (via socket.io)
-           // Start ---->
-           const connectedUsers = getConnectedUsers();
-           const io = getIO();
-           const toUserSocketId = await connectedUsers.get(toUserId.toString());
-           if(!toUserSocketId){
-              socketIssue = `User not Active yet ! toUserSocketId not found.`;
-           }
-       
-           if (toUserSocketId) {
-             io.to(toUserSocketId).emit("connectionRequest", {
-               username: fromUser?.personalDetails?.fullname,
-               photoUrl: fromUser?.personalDetails?.closeUpPhoto,
-               userId: fromUser.userId,
-               message: notificationMessage,
-               status: status,
-             });
-           }
-       
-           // End ---->
+    // Optionally, send a real-time notification to the user who sent the request (via socket.io)
+    // Start ---->
+    const connectedUsers = getConnectedUsers();
+    const io = getIO();
+    const toUserSocketId = await connectedUsers.get(toUserId.toString());
+    if (!toUserSocketId) {
+      socketIssue = `User not Active yet ! toUserSocketId not found.`;
+    }
+
+    if (toUserSocketId) {
+      io.to(toUserSocketId).emit("connectionRequest", {
+        username: fromUser?.personalDetails?.fullname,
+        photoUrl: fromUser?.personalDetails?.closeUpPhoto,
+        userId: fromUser.userId,
+        message: notificationMessage,
+        status: status,
+      });
+    }
+
+    // End ---->
 
     // Return success message with the created connection request data
     return res.status(200).json({
-      status: true ,
+      status: true,
       message: `${req?.user?.username} is ${status} in ${toUser?.personalDetails?.fullname}`,
       data: data,
       socketIssue
     });
   } catch (err) {
-    res.status(500).json({status: false, message: "Error while sending connection request", error: err.message });
+    res.status(500).json({ status: false, message: "Error while sending connection request", error: err.message });
   }
 }
 
@@ -123,22 +123,22 @@ const recievedConnectionRequests = async (req, res) => {
     const userId = req.user._id;
 
     // ✅ Step 0: Check logged-in user's biodata status (non-breaking)
-const loggedInUserBiodata = await Biodata.findOne({ userId });
+    const loggedInUserBiodata = await Biodata.findOne({ userId });
 
-if (!loggedInUserBiodata) {
-  return res.status(400).json({
-    status: false,
-    message: "You need to create your biodata first to view connection requests.",
-  });
-}
+    if (!loggedInUserBiodata) {
+      return res.status(400).json({
+        status: false,
+        message: "You need to create your biodata first to view connection requests.",
+      });
+    }
 
-if (loggedInUserBiodata.activityStatus === "Inactive") {
-  return res.status(400).json({
-    status: false,
-    message:
-      "Your biodata has been deactivated by the Brahmin Milan Team. Please contact support for reactivation.",
-  });
-}
+    if (loggedInUserBiodata.activityStatus === "Inactive") {
+      return res.status(400).json({
+        status: false,
+        message:
+          "Your biodata has been deactivated by the Brahmin Milan Team. Please contact support for reactivation.",
+      });
+    }
 
     const connectionRequests = await ConnectionRequest.find({
       toUserId: userId,
@@ -233,7 +233,7 @@ const sentConnectionRequests = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
 
-     //  Step 0: Check logged-in user's biodata status
+    //  Step 0: Check logged-in user's biodata status
     const loggedInUserBiodata = await Biodata.findOne({ userId: loggedInUserId });
 
     if (!loggedInUserBiodata) {
@@ -345,12 +345,12 @@ const responseToRequest = async (req, res) => {
     const loggedInUser = req.user;
     const { status, requestId } = req.params;
     const allowedStatus = ["accepted", "rejected"];
-    let socketIssue = ""; 
+    let socketIssue = "";
 
     //logggedInUserBioData
-    const loggedInUserBiodata = await Biodata.findOne({userId: loggedInUser._id});
+    const loggedInUserBiodata = await Biodata.findOne({ userId: loggedInUser._id });
 
-        if (!loggedInUserBiodata || loggedInUserBiodata.activityStatus === "Inactive") {
+    if (!loggedInUserBiodata || loggedInUserBiodata.activityStatus === "Inactive") {
       return res.status(400).json({
         status: false,
         message: "Your biodata has been deactivated by the Brahmin Milan Team. Please contact support for reactivation.",
@@ -360,7 +360,7 @@ const responseToRequest = async (req, res) => {
 
     // Validate the status type
     if (!allowedStatus.includes(status)) {
-      return res.status(400).json({ status: false,message: "Invalid Status Type: " + status });
+      return res.status(400).json({ status: false, message: "Invalid Status Type: " + status });
     }
 
     // Find the connection request that is currently in the "interested" status
@@ -371,7 +371,7 @@ const responseToRequest = async (req, res) => {
     });
 
     if (!connectionRequest) {
-      return res.status(400).json({status: false, message: "Connection Request Not Found" });
+      return res.status(400).json({ status: false, message: "Connection Request Not Found" });
     }
 
     // Update the status of the connection request
@@ -399,37 +399,37 @@ const responseToRequest = async (req, res) => {
       message: message,
     });
 
-          // Optionally, send a real-time notification to the user who sent the request (via socket.io)
-          // Start ---->
-          const connectedUsers = getConnectedUsers();
-          const io = getIO();
-          const fromUserSocketId = await connectedUsers.get(fromUser._id.toString());
-      
-          if(!fromUserSocketId){
-             socketIssue = `User not Active yet ! fromUserSocketId not found.`;
-          }
-      
-          if (fromUserSocketId) {
-            io.to(fromUserSocketId).emit("connectionRequestResponse", {
-              username: loggedInUser?.username,
-              userId: loggedInUser?._id,
-             photoUrl: Array.isArray(loggedInUser?.photoUrl) ? loggedInUser.photoUrl[0] : loggedInUserBiodata?.personalDetails?.closeUpPhoto || null,
-              message: message,
-              status: status,
-            });
-          }
-          // End ---->
-     
+    // Optionally, send a real-time notification to the user who sent the request (via socket.io)
+    // Start ---->
+    const connectedUsers = getConnectedUsers();
+    const io = getIO();
+    const fromUserSocketId = await connectedUsers.get(fromUser._id.toString());
+
+    if (!fromUserSocketId) {
+      socketIssue = `User not Active yet ! fromUserSocketId not found.`;
+    }
+
+    if (fromUserSocketId) {
+      io.to(fromUserSocketId).emit("connectionRequestResponse", {
+        username: loggedInUser?.username,
+        userId: loggedInUser?._id,
+        photoUrl: Array.isArray(loggedInUser?.photoUrl) ? loggedInUser.photoUrl[0] : loggedInUserBiodata?.personalDetails?.closeUpPhoto || null,
+        message: message,
+        status: status,
+      });
+    }
+    // End ---->
+
     // Respond with the updated status
     return res.status(200).json({
-      status: true ,
+      status: true,
       message: `Connection Request: ${status}`,
       data: data,
       socketIssue
     });
 
   } catch (err) {
-    res.status(500).json({status: false, message: "Error While Reviewing Request: " + err.message });
+    res.status(500).json({ status: false, message: "Error While Reviewing Request: " + err.message });
   }
 };
 
@@ -470,4 +470,4 @@ const deleteConnectionRequest = async (req, res) => {
 };
 
 
-module.exports = { sendRequest,responseToRequest,recievedConnectionRequests,sentConnectionRequests,deleteConnectionRequest}
+module.exports = { sendRequest, responseToRequest, recievedConnectionRequests, sentConnectionRequests, deleteConnectionRequest }

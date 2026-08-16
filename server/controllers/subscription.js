@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const Subscription = require("../models/subscription");
 const SubscriptionPlan = require("../models/subscriptionPlan");
 const Pandit = require("../models/pandit");
@@ -8,6 +10,7 @@ const Razorpay = require("razorpay");
 const crypto = require("crypto");
 const User = require("../models/user");
 const { default: mongoose } = require("mongoose");
+const { BASE_URL } = require("../utils/constants");
 
 require("dotenv").config();
 
@@ -16,32 +19,59 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
+
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
+
+const cleanupUploadedFile = (file) => {
+  if (file) fs.unlink(file.path, () => { });
+};
+
 exports.createSubscriptionPlan = async (req, res) => {
   try {
     const { profileType, trialPeriod, duration, amount, description } = req.body;
 
     // Validate required fields
     if (!profileType || !trialPeriod || !duration || !amount || !description) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({ status: false, error: "All fields are required." });
     }
 
     // Ensure profileType is one of the predefined values
     const allowedProfileTypes = ["Biodata", "Pandit", "Kathavachak", "Jyotish"];
     if (!allowedProfileTypes.includes(profileType)) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({ status: false, error: "Invalid profile type." });
     }
 
     // Prepare new plan object
     const newPlanData = { profileType, trialPeriod, duration, amount, description };
 
-    // If a photo was uploaded, add its URL
-  if (req.file && req.file.path) {
-  newPlanData.photoUrl = req.file.path.replace(/\\/g, "/");
-}
+    // If a photo was uploaded, build its servable URL
+    if (req.file) {
+      newPlanData.photoUrl = buildImageUrl(req.file.filename);
+    }
 
     // Create and save plan
     const newPlan = new SubscriptionPlan(newPlanData);
-    await newPlan.save();
+
+    try {
+      await newPlan.save();
+    } catch (saveErr) {
+      // DB save failed — the uploaded file is now orphaned, clean it up
+      if (newPlanData.photoUrl) deleteLocalImage(newPlanData.photoUrl);
+      throw saveErr;
+    }
 
     return res.status(200).json({
       status: true,
@@ -49,6 +79,7 @@ exports.createSubscriptionPlan = async (req, res) => {
       plan: newPlan,
     });
   } catch (error) {
+    cleanupUploadedFile(req.file);
     res.status(500).json({ status: false, error: "Server error", details: error.message });
   }
 };
@@ -58,24 +89,43 @@ exports.updateSubscriptionPlan = async (req, res) => {
     const { planId, trialPeriod, duration, amount, description } = req.body;
 
     if (!planId) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({ status: false, error: "Plan ID is required." });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(planId)) {
+      cleanupUploadedFile(req.file);
+      return res.status(400).json({ status: false, error: "Invalid Plan ID." });
+    }
+
+    const existingPlan = await SubscriptionPlan.findById(planId);
+    if (!existingPlan) {
+      cleanupUploadedFile(req.file);
+      return res.status(400).json({ status: false, error: "Subscription plan not found." });
     }
 
     const updateObj = { trialPeriod, duration, amount, description };
 
-    if (req.file && req.file.path) {
-      updateObj.photoUrl = req.file.path.replace(/\\/g, "/");
+    if (req.file) {
+      updateObj.photoUrl = buildImageUrl(req.file.filename);
     }
 
-    // Find and update by _id
-    const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(
-      planId,
-      updateObj,
-      { new: true, runValidators: true }
-    );
+    let updatedPlan;
+    try {
+      updatedPlan = await SubscriptionPlan.findByIdAndUpdate(
+        planId,
+        updateObj,
+        { new: true, runValidators: true }
+      );
+    } catch (saveErr) {
+      // DB update failed — the newly uploaded file is orphaned, clean it up
+      if (updateObj.photoUrl) deleteLocalImage(updateObj.photoUrl);
+      throw saveErr;
+    }
 
-    if (!updatedPlan) {
-      return res.status(400).json({ status: false, error: "Subscription plan not found." });
+    // Success — delete the old photo now that the new one is confirmed saved
+    if (updateObj.photoUrl && existingPlan.photoUrl) {
+      deleteLocalImage(existingPlan.photoUrl);
     }
 
     return res.status(200).json({
@@ -84,6 +134,7 @@ exports.updateSubscriptionPlan = async (req, res) => {
       plan: updatedPlan
     });
   } catch (error) {
+    cleanupUploadedFile(req.file);
     console.error("Update Subscription Plan Error:", error);
     res.status(500).json({ status: false, error: "Server error", details: error.message });
   }
@@ -256,7 +307,7 @@ exports.buySubscription = async (req, res) => {
     await Subscription.deleteMany({
       userId,
       "service.serviceType": profileType,
-     "service.status": { $in: ["Pending"] }
+      "service.status": { $in: ["Pending"] }
     });
 
     // ✅ Check for active subscription
@@ -641,7 +692,7 @@ exports.getRazorPayKey = async (req, res) => {
 exports.deleteSubscriptionRecord = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const deleted = await Subscription.findByIdAndDelete(id);
     if (!deleted) {
       return res.status(404).json({ message: "Subscription record not found." });

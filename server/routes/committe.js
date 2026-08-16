@@ -1,4 +1,4 @@
-const {Router} = require("express");
+const { Router } = require("express");
 const controller = require("../controllers/committee");
 const verifyToken = require("../middlewares/auth");
 const upload = require("../config/multerConfig");
@@ -18,8 +18,8 @@ router.patch(
   upload.fields([{ name: "photoUrl", maxCount: 1 }]), // For updating photo
   controller.updateCommittee
 );
-router.get("/viewCommittee",verifyToken,controller.viewCommittee);
-router.get("/getAllCommittee",verifyToken,controller.getAllCommittee);
-router.delete("/delete-Committee/:committeeId",verifyToken,controller.deleteCommitteeProfile);
+router.get("/viewCommittee", verifyToken, controller.viewCommittee);
+router.get("/getAllCommittee", verifyToken, controller.getAllCommittee);
+router.delete("/delete-Committee/:committeeId", verifyToken, controller.deleteCommitteeProfile);
 
 module.exports = router;

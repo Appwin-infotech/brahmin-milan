@@ -6,8 +6,8 @@ const upload = require('../config/multerConfig');
 
 const router = Router();
 
-router.post('/createPlan', upload.single('photo'), verifyAdminToken, controller.createSubscriptionPlan);
-router.patch('/updatePlan', upload.single('photo'), verifyAdminToken, controller.updateSubscriptionPlan);
+router.post('/createPlan', verifyAdminToken, upload.single('photo'), controller.createSubscriptionPlan);
+router.patch('/updatePlan', verifyAdminToken, upload.single('photo'), controller.updateSubscriptionPlan);
 router.delete('/deletePlan/:planId', verifyAdminToken, controller.deleteSubscriptionPlan);
 router.delete('/deleteRecord/:id', verifyAdminToken, controller.deleteSubscriptionRecord);
 router.post('/buy', verifyToken, controller.buySubscription);

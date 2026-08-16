@@ -14,44 +14,44 @@ const saveProfiles = async (req, res) => {
   const userId = req?.user?._id;  // Assuming user is authenticated and their ID is in req.user
   const profileId = req?.params?.id;  // The profile ID from the request
 
-  try {  
+  try {
 
-      
-// Helper function to check which model the profile ID belongs to
-   const checkProfileById = async (profileId) => {
-     let profile = null;
-     let profileType = null;
 
-     // Check PanditProfile first
-     profile = await Pandit.findById(profileId);
-      if(profile) {
+    // Helper function to check which model the profile ID belongs to
+    const checkProfileById = async (profileId) => {
+      let profile = null;
+      let profileType = null;
+
+      // Check PanditProfile first
+      profile = await Pandit.findById(profileId);
+      if (profile) {
         profileType = profile.profileType;
         return { profile, profileType };
-     }
-     // Check Biodata
-     profile = await Biodata.findById(profileId);
-       if (profile) {
-       profileType = profile.profileType;
-       return { profile, profileType };
+      }
+      // Check Biodata
+      profile = await Biodata.findById(profileId);
+      if (profile) {
+        profileType = profile.profileType;
+        return { profile, profileType };
       }
 
-     // check JyotishProfile
-     if (!profile) {
-       profile = await Jyotish.findById(profileId);
+      // check JyotishProfile
+      if (!profile) {
+        profile = await Jyotish.findById(profileId);
         if (profile) {
-        profileType = profile.profileType;
-        return { profile, profileType };
-       }
+          profileType = profile.profileType;
+          return { profile, profileType };
+        }
       }
 
-     //  check KathvachakProfile
-     if (!profile) {
+      //  check KathvachakProfile
+      if (!profile) {
         profile = await Kathavachak.findById(profileId);
         if (profile) {
           profileType = profile.profileType;
           return { profile, profileType };
         }
-       }
+      }
 
       // check Committee
       if (!profile) {
@@ -60,17 +60,17 @@ const saveProfiles = async (req, res) => {
           profileType = profile.profileType;
           return { profile, profileType };
         }
-       }    
-     //check Dharshala
-     if (!profile) {
-      profile = await Dharmshala.findById(profileId);
-      if (profile) {
-        profileType = profile.profileType;
-        return { profile, profileType };
       }
-     }     
+      //check Dharshala
+      if (!profile) {
+        profile = await Dharmshala.findById(profileId);
+        if (profile) {
+          profileType = profile.profileType;
+          return { profile, profileType };
+        }
+      }
 
-  };
+    };
 
 
     // Check which model the profile belongs to by the profileId
@@ -79,15 +79,15 @@ const saveProfiles = async (req, res) => {
 
     // If no profile was found, return an error
     if (!profile) {
-      return res.status(400).json({status:false, message: "Profile not found." });
+      return res.status(400).json({ status: false, message: "Profile not found." });
     }
 
     // Check if the profile is already saved by this user
     const existingSavedProfile = await SavedProfile.findOne({ userId, saveProfile: profileId, profileType });
     if (existingSavedProfile) {
       // return res.status(400).json({ message: "Profile already saved." });
-      const deletedSavedProfile = await SavedProfile.findOneAndDelete({saveProfile: profileId});
-      return res.status(200).json({status:true ,message: `${profileType} Profile Successfully Removed from savedProfiles.`,data:deletedSavedProfile});
+      const deletedSavedProfile = await SavedProfile.findOneAndDelete({ saveProfile: profileId });
+      return res.status(200).json({ status: true, message: `${profileType} Profile Successfully Removed from savedProfiles.`, data: deletedSavedProfile });
     }
 
     // Create a new SavedProfile entry for the user and profile
@@ -100,9 +100,10 @@ const saveProfiles = async (req, res) => {
     await newSavedProfile.save();
 
     return res.status(200).json({
-      status: true ,message: "Profile saved successfully." });
+      status: true, message: "Profile saved successfully."
+    });
   } catch (error) {
-    res.status(500).json({status:false, message: "Error saving profile", error: error.message });
+    res.status(500).json({ status: false, message: "Error saving profile", error: error.message });
   }
 };
 
@@ -349,25 +350,25 @@ const getSavedProfiles = async (req, res) => {
       });
     }
 
-// 2️⃣ Filter out inactive profiles
-const activeSavedProfiles = savedProfiles.filter((saved) => {
-  const profile = saved?.saveProfile;
-  if (!profile) return false;
+    // 2️⃣ Filter out inactive profiles
+    const activeSavedProfiles = savedProfiles.filter((saved) => {
+      const profile = saved?.saveProfile;
+      if (!profile) return false;
 
-  switch (profile.profileType) {
-    case "Biodata":
-      return profile.activityStatus !== "Inactive";
-    case "Pandit":
-    case "Jyotish":
-    case "Kathavachak":
-      return profile.isEnabled === true;
-    case "Dharmshala":
-    case "Committee":
-      return true; // ✅ Always allow, no activity/isEnabled field
-    default:
-      return false;
-  }
-});
+      switch (profile.profileType) {
+        case "Biodata":
+          return profile.activityStatus !== "Inactive";
+        case "Pandit":
+        case "Jyotish":
+        case "Kathavachak":
+          return profile.isEnabled === true;
+        case "Dharmshala":
+        case "Committee":
+          return true; // ✅ Always allow, no activity/isEnabled field
+        default:
+          return false;
+      }
+    });
 
 
     if (activeSavedProfiles.length === 0) {
@@ -402,19 +403,19 @@ const activeSavedProfiles = savedProfiles.filter((saved) => {
 
     for (const type of Object.keys(profileTypeToUserIds)) {
       if (profileTypeToUserIds[type].size > 0) {
-const subscribedUsers = await User.find({
-  _id: { $in: Array.from(profileTypeToUserIds[type]) },
-  serviceSubscriptions: {
-    $elemMatch: {
-      serviceType: type,
-      status: "Active",
-      endDate: { $gte: new Date() }
-    }
-  }
-}).select("_id");
+        const subscribedUsers = await User.find({
+          _id: { $in: Array.from(profileTypeToUserIds[type]) },
+          serviceSubscriptions: {
+            $elemMatch: {
+              serviceType: type,
+              status: "Active",
+              endDate: { $gte: new Date() }
+            }
+          }
+        }).select("_id");
 
 
-         console.log("subscribed Users:", type, " :",subscribedUsers);
+        console.log("subscribed Users:", type, " :", subscribedUsers);
 
         activeSubscribedUserIds[type] = new Set(
           subscribedUsers.map((u) => u._id.toString())
@@ -422,7 +423,7 @@ const subscribedUsers = await User.find({
       }
     }
 
-   
+
 
     // 5️⃣ Prepare connection map only for Biodata
     let connectionMap = {};
@@ -440,46 +441,46 @@ const subscribedUsers = await User.find({
       });
     }
 
-// 6️⃣ Final transformed response
-const result = activeSavedProfiles
-  .map((saved) => {
-    const profile = saved.saveProfile?.toObject();
-const profileUserId =
-  typeof profile?.userId === "object"
-    ? profile.userId._id?.toString()
-    : profile?.userId?.toString();
+    // 6️⃣ Final transformed response
+    const result = activeSavedProfiles
+      .map((saved) => {
+        const profile = saved.saveProfile?.toObject();
+        const profileUserId =
+          typeof profile?.userId === "object"
+            ? profile.userId._id?.toString()
+            : profile?.userId?.toString();
 
-    const type = profile.profileType;
+        const type = profile.profileType;
 
-    // Skip unsubscribed only for types with subscriptions
-if (["Biodata", "Pandit", "Jyotish", "Kathavachak"].includes(type)) {
-  if (!activeSubscribedUserIds[type].has(profileUserId)) return null;
-}
+        // Skip unsubscribed only for types with subscriptions
+        if (["Biodata", "Pandit", "Jyotish", "Kathavachak"].includes(type)) {
+          if (!activeSubscribedUserIds[type].has(profileUserId)) return null;
+        }
 
 
-    // Add extra fields only for Biodata
-    if (type === "Biodata") {
-      const existingConnection = connectionMap[profileUserId];
-      return {
-        ...profile,
-        isSaved: true,
-        requestId: existingConnection?._id || null,
-        requestStatus: existingConnection?.status || null,
-        connectionStatus: existingConnection
-          ? existingConnection.fromUserId.toString() === userId.toString()
-            ? "sent"
-            : "received"
-          : "none",
-      };
-    }
+        // Add extra fields only for Biodata
+        if (type === "Biodata") {
+          const existingConnection = connectionMap[profileUserId];
+          return {
+            ...profile,
+            isSaved: true,
+            requestId: existingConnection?._id || null,
+            requestStatus: existingConnection?.status || null,
+            connectionStatus: existingConnection
+              ? existingConnection.fromUserId.toString() === userId.toString()
+                ? "sent"
+                : "received"
+              : "none",
+          };
+        }
 
-    // For others, just return with isSaved
-    return {
-      ...profile,
-      isSaved: true,
-    };
-  })
-  .filter(Boolean);
+        // For others, just return with isSaved
+        return {
+          ...profile,
+          isSaved: true,
+        };
+      })
+      .filter(Boolean);
 
 
     if (result.length === 0) {
@@ -503,32 +504,33 @@ if (["Biodata", "Pandit", "Jyotish", "Kathavachak"].includes(type)) {
 };
 
 
-const deleteSavedProfiles = async (req,res) => {
-  
-   try{
- 
+const deleteSavedProfiles = async (req, res) => {
+
+  try {
+
     const userId = req?.user?._id
     const profileId = req?.params?.id;
 
-    const existingSavedProfile = await SavedProfile.find({saveProfile:profileId});
+    const existingSavedProfile = await SavedProfile.find({ saveProfile: profileId });
 
-    if(!existingSavedProfile || existingSavedProfile.length === 0){
-      return res.status(400).json({status:false, message: "profile Not found in savedProfiles!"})
+    if (!existingSavedProfile || existingSavedProfile.length === 0) {
+      return res.status(400).json({ status: false, message: "profile Not found in savedProfiles!" })
     }
 
-    const deleteSavedProfile = await SavedProfile.deleteOne({saveProfile:profileId});
+    const deleteSavedProfile = await SavedProfile.deleteOne({ saveProfile: profileId });
 
 
-    if(!deleteSavedProfile){
-      return res.status(400).json({status:false, message: "Something went wrong while Deleting Saved Profile!"})
+    if (!deleteSavedProfile) {
+      return res.status(400).json({ status: false, message: "Something went wrong while Deleting Saved Profile!" })
     }
 
     return res.status(200).json({
-      status: true , message: "Profile Deleted SuccessFully from savedProiles.",data:deleteSavedProfile});
+      status: true, message: "Profile Deleted SuccessFully from savedProiles.", data: deleteSavedProfile
+    });
 
-   }catch(err){
-    res.status(500).json({status: "success",message: err.message})
-   }
+  } catch (err) {
+    res.status(500).json({ status: "success", message: err.message })
+  }
 }
 
-module.exports = {saveProfiles,getSavedProfiles,deleteSavedProfiles};
+module.exports = { saveProfiles, getSavedProfiles, deleteSavedProfiles };

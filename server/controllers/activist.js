@@ -10,12 +10,33 @@ const SavedProfile = require("../models/savedProfiles");
 const Admin = require("../models/admin");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
 const Notification = require("../models/notification");
+const fs = require("fs");
+const path = require("path");
 
 const BASE_URL = process.env.BASE_URL;
 
 function buildStoredUrl(filename) {
   return `${BASE_URL}/uploads/${filename}`;
 }
+
+// Delete a local uploads/ file given its public URL. Safe no-op for
+// non-local URLs or missing files.
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
+
+// Deletes the file Multer wrote for this request, if any (used on every early-return path)
+const cleanupUploadedFile = (file) => {
+  if (file) fs.unlink(file.path, () => { });
+};
 
 const createActivistProfileRequest = async (req, res) => {
   try {
@@ -41,6 +62,7 @@ const createActivistProfileRequest = async (req, res) => {
       !city ||
       !mobileNo
     ) {
+      cleanupUploadedFile(req.file);
       return res
         .status(400)
         .json({ status: false, message: "Please Enter Required Fields!" });
@@ -57,6 +79,7 @@ const createActivistProfileRequest = async (req, res) => {
     // Validate mobile number format
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (!mobileRegex.test(mobileNo)) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "Invalid mobile number! Please enter a valid mobile number.",
@@ -68,6 +91,7 @@ const createActivistProfileRequest = async (req, res) => {
       mobileNo,
     });
     if (existingMobileNoInRequest) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "Your request for activist profile is pending for Admin approval please wait for sometime.",
@@ -77,6 +101,7 @@ const createActivistProfileRequest = async (req, res) => {
     // Check if the mobileNo already exists in the Activist collection
     const existingMobileNo = await Activist.findOne({ mobileNo });
     if (existingMobileNo) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "A Activist Profile already exists with the provided details.",
@@ -88,6 +113,7 @@ const createActivistProfileRequest = async (req, res) => {
       const parsedDob = moment(dob, "DD/MM/YYYY", true); // Strict parsing with moment.js
 
       if (!parsedDob.isValid()) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({
           status: false,
           message:
@@ -102,6 +128,7 @@ const createActivistProfileRequest = async (req, res) => {
     if (knownActivistId) {
       const regex = /^[A-Z]{2}[0-9]{4}$/;
       if (!regex.test(knownActivistId)) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({
           status: false,
           message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001' to 'ZZ9999'.`,
@@ -113,6 +140,7 @@ const createActivistProfileRequest = async (req, res) => {
       const isValidknownActivist = await Activist.findOne({ activistId: knownActivistId });
 
       if (!isValidknownActivist) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({ status: false, message: "Invalid KnownActivistId! Activist not Found!" })
       }
     }
@@ -120,6 +148,7 @@ const createActivistProfileRequest = async (req, res) => {
     // Check if the user has already registered as an activist
     const existingActivist = await ActivistRequest.findOne({ userId });
     if (existingActivist) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "You have already Registered as Activist!",
@@ -147,7 +176,13 @@ const createActivistProfileRequest = async (req, res) => {
     });
 
     // Save the new activist request to the database
-    await newActivistRequest.save();
+    try {
+      await newActivistRequest.save();
+    } catch (saveErr) {
+      // DB save failed — the uploaded photo is now orphaned, clean it up
+      deleteLocalImage(photoUrlPath);
+      throw saveErr;
+    }
 
     // 1. Send notification to all admins about the request
     const admins = await Admin.find(); // Get all admins
@@ -183,6 +218,7 @@ const createActivistProfileRequest = async (req, res) => {
       data: newActivistRequest,
     });
   } catch (err) {
+    cleanupUploadedFile(req.file);
     res.status(500).json({ status: false, message: err.message });
   }
 };
@@ -206,6 +242,7 @@ const updateActivistProfile = async (req, res) => {
     // Validate mobile number format
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -217,6 +254,7 @@ const updateActivistProfile = async (req, res) => {
     if (knownActivistId) {
       const regex = /^[A-Z]{2}[0-9]{4}$/;
       if (!regex.test(knownActivistId)) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({
           status: false,
           message: `Invalid knownActivistId: ${knownActivistId}. It should be in the format 'XX0001' to 'ZZ9999'.`,
@@ -225,6 +263,7 @@ const updateActivistProfile = async (req, res) => {
 
       const isValidknownActivist = await Activist.findOne({ activistId: knownActivistId });
       if (!isValidknownActivist) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({ status: false, message: "Invalid KnownActivistId! Activist not Found!" });
       }
     }
@@ -233,6 +272,7 @@ const updateActivistProfile = async (req, res) => {
     if (dob) {
       const parsedDob = moment(dob, "DD/MM/YYYY", true);
       if (!parsedDob.isValid()) {
+        cleanupUploadedFile(req.file);
         return res.status(400).json({
           status: false,
           message:
@@ -245,6 +285,7 @@ const updateActivistProfile = async (req, res) => {
     // Check if activist profile exists
     const existingActivist = await Activist.findOne({ userId });
     if (!existingActivist) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "Invalid request! Activist profile not found!",
@@ -257,16 +298,29 @@ const updateActivistProfile = async (req, res) => {
     }
 
     // Perform the update
-    const updatedActivist = await Activist.updateOne(
-      { userId },
-      { $set: dataForUpdate }
-    );
+    let updatedActivist;
+    try {
+      updatedActivist = await Activist.updateOne(
+        { userId },
+        { $set: dataForUpdate }
+      );
+    } catch (updateErr) {
+      // DB update failed — the newly uploaded photo is orphaned, clean it up
+      if (req.file) deleteLocalImage(dataForUpdate.profilePhoto);
+      throw updateErr;
+    }
 
     if (updatedActivist.modifiedCount === 0) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "No changes were made to the profile.",
       });
+    }
+
+    // Success — delete the old photo now that the new one is confirmed saved
+    if (req.file && existingActivist.profilePhoto) {
+      deleteLocalImage(existingActivist.profilePhoto);
     }
 
     return res.status(200).json({
@@ -274,6 +328,7 @@ const updateActivistProfile = async (req, res) => {
       message: "Activist profile updated successfully.",
     });
   } catch (err) {
+    cleanupUploadedFile(req.file);
     res.status(500).json({ status: false, message: err.message });
   }
 };

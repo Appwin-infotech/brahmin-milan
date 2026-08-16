@@ -1,4 +1,6 @@
 const { default: mongoose } = require("mongoose");
+const fs = require("fs");
+const path = require("path");
 const Admin = require("../models/admin");
 const Biodata = require("../models/biodata");
 const SuccessStory = require("../models/successStory");
@@ -6,10 +8,26 @@ const SuccessStoryRequest = require("../models/successStoryRequest");
 const { sendNotificationToAdmin } = require("../socket/socket.server");
 const Notification = require("../models/notification");
 const ConnectionRequest = require("../models/connectionRequest");
+const { BASE_URL } = require("../utils/constants");
 
-const cloudinary = require("cloudinary").v2;
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
 
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
+
+// Deletes the file Multer wrote for this request, if any (used on every early-return path)
+const cleanupUploadedFile = (file) => {
+  if (file) fs.unlink(file.path, () => { });
+};
 
 const createSuccessStory = async (req, res) => {
   try {
@@ -32,6 +50,7 @@ const createSuccessStory = async (req, res) => {
       !rating ||
       !thought
     ) {
+      cleanupUploadedFile(req.file);
       return res
         .status(400)
         .json({ status: false, message: "Please Enter Required Fields!" });
@@ -41,6 +60,7 @@ const createSuccessStory = async (req, res) => {
     if (weddingDate) {
       parsedWD = new Date(weddingDate);
       if (isNaN(parsedWD)) {
+        cleanupUploadedFile(req.file);
         return res
           .status(400)
           .json({ status: false, message: "Invalid Wedding Date." });
@@ -48,6 +68,7 @@ const createSuccessStory = async (req, res) => {
     }
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({ status: false, message: "Invalid User!" });
     }
 
@@ -55,6 +76,7 @@ const createSuccessStory = async (req, res) => {
     const brideBiodata = await Biodata.findOne({ bioDataId: brideBiodataId });
 
     if (!groomBiodata || !brideBiodata) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "Invalid groom or bride Biodata ID.",
@@ -70,6 +92,7 @@ const createSuccessStory = async (req, res) => {
     });
 
     if (!brideAndGroomConnection) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -82,6 +105,7 @@ const createSuccessStory = async (req, res) => {
       brideBiodataId,
     });
     if (alreadyExistingStoryRequest) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -94,6 +118,7 @@ const createSuccessStory = async (req, res) => {
       brideBiodataId,
     });
     if (alreadyExistingStory) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -106,6 +131,7 @@ const createSuccessStory = async (req, res) => {
     });
 
     if (existingStoryInRequest) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "You have already Requested a SuccessStory.",
@@ -115,6 +141,7 @@ const createSuccessStory = async (req, res) => {
     const existingStory = await SuccessStory.findOne({ userId: userId });
 
     if (existingStory) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message: "You have already uploaded a SuccessStory.",
@@ -126,6 +153,7 @@ const createSuccessStory = async (req, res) => {
     });
 
     if (ifEitherInStoryRequest) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -138,6 +166,7 @@ const createSuccessStory = async (req, res) => {
     });
 
     if (ifEitherInStory) {
+      cleanupUploadedFile(req.file);
       return res.status(400).json({
         status: false,
         message:
@@ -145,35 +174,10 @@ const createSuccessStory = async (req, res) => {
       });
     }
 
-    // 🔹 Handle photoUrl upload via Cloudinary - optional, max 1
+    // 🔹 Build local photoUrl from the file Multer already saved to /uploads - optional
     let photoUrlPath = null;
-    if (req.files?.photoUrl) {
-      const photoFiles = Array.isArray(req.files.photoUrl)
-        ? req.files.photoUrl
-        : [req.files.photoUrl];
-
-      if (photoFiles.length > 1) {
-        return res.status(400).json({
-          status: false,
-          message: "Only 1 photo is allowed.",
-        });
-      }
-
-      const upload = await uploadImageToCloudinary(
-        photoFiles[0],
-        process.env.FOLDER_NAME || "successStory",
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Photo upload failed.",
-        });
-      }
-
-      photoUrlPath = upload.secure_url;
+    if (req.file) {
+      photoUrlPath = buildImageUrl(req.file.filename);
     }
 
     const groomDetails = {
@@ -206,7 +210,14 @@ const createSuccessStory = async (req, res) => {
       weddingDate: parsedWD,
     });
 
-    await newStory.save();
+    try {
+      await newStory.save();
+    } catch (saveErr) {
+      // DB save failed — the uploaded file is now orphaned, clean it up
+      if (photoUrlPath) deleteLocalImage(photoUrlPath);
+      throw saveErr;
+    }
+
     await newStory.populate({
       path: "userId",
       select: "userId username email photoUrl",
@@ -248,6 +259,7 @@ const createSuccessStory = async (req, res) => {
       story: newStory,
     });
   } catch (err) {
+    cleanupUploadedFile(req.file);
     return res.status(500).json({ status: false, message: err.message });
   }
 };
@@ -309,20 +321,20 @@ const deleteSuccessStory = async (req, res) => {
       return res.status(400).json({ status: false, message: "Unauthorized to delete this success story." });
     }
 
-        // Delete related notifications only
-await Notification.deleteMany({
-  $or: [
-    {
-      notificationType: { $in: ["successStoryRequest", "successStoryApproved"] },
-      "relatedData.successStoryId": id,
-    },
-    {
-      notificationType: "successStoryRejected",
-      "relatedData.toUserId": story.userId,
-      "relatedData.status": "rejected",
-    },
-  ],
-});
+    // Delete related notifications only
+    await Notification.deleteMany({
+      $or: [
+        {
+          notificationType: { $in: ["successStoryRequest", "successStoryApproved"] },
+          "relatedData.successStoryId": id,
+        },
+        {
+          notificationType: "successStoryRejected",
+          "relatedData.toUserId": story.userId,
+          "relatedData.status": "rejected",
+        },
+      ],
+    });
 
 
     // Delete the story
@@ -334,7 +346,7 @@ await Notification.deleteMany({
     });
 
   } catch (err) {
-    return res.status(500).json({ status: false, message:err.message });
+    return res.status(500).json({ status: false, message: err.message });
   }
 };
 
@@ -398,4 +410,4 @@ const editSuccessStory = async (req, res) => {
 };
 
 
-module.exports = { createSuccessStory, deleteSuccessStory,getSuccessStories ,editSuccessStory };
+module.exports = { createSuccessStory, deleteSuccessStory, getSuccessStories, editSuccessStory };

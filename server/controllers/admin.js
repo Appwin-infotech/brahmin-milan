@@ -53,6 +53,175 @@ const deleteUploadedFile = (fieldname, fileUrl) => {
   }
 };
 
+const committeeByAdmin = async (req, res) => {
+  try {
+    const adminUserId = req?.admin?._id;
+
+    // Check if the requester is an admin
+    const adminProfile = await Admin.findOne({ _id: adminUserId });
+    if (!adminProfile) {
+      return res.status(400).json({
+        status: false,
+        message: "Access denied! Only admin can create committee profiles on behalf of Activist.",
+      });
+    }
+
+    // Get fields from request body (populated via multer for file upload)
+    const {
+      activistId,
+      committeeTitle,
+      presidentName,
+      subCaste,
+      city,
+      area,
+      mobileNo,
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !activistId ||
+      !committeeTitle ||
+      !presidentName ||
+      !subCaste ||
+      !city ||
+      !area ||
+      !mobileNo
+    ) {
+      return res
+        .status(400)
+        .json({ status: false, message: "Please enter all required fields!" });
+    }
+
+    // Validate activist ID (Assuming it's a 6-digit code like 'XX0001')
+    if (!/^[A-Z]{2}[0-9]{4}$/.test(activistId)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid activist ID! It should be in the format 'XX0001' to 'ZZ9999'.",
+      });
+    }
+
+    // Find the activist by their unique ID
+    const activistProfile = await Activist.findOne({ activistId });
+
+    if (!activistProfile) {
+      return res.status(400).json({
+        status: false,
+        message: "Activist not found! Please check the ID.",
+      });
+    }
+
+    const userId = activistProfile.userId;
+
+    // Handle photo file upload via multer (req.files)
+    let photoUrlPath = null;
+    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
+      // Save file path, replacing backslashes
+      photoUrlPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+    }
+
+    // Create new committee profile
+    const newCommitteeProfile = new Committee({
+      userId,
+      activistId: activistProfile._id,
+      committeeTitle,
+      presidentName,
+      subCaste,
+      city,
+      area,
+      photoUrl: photoUrlPath,
+      mobileNo,
+    });
+
+    await newCommitteeProfile.save();
+
+    return res.status(200).json({
+      status: true,
+      message: "Committee Profile Created Successfully!",
+      data: newCommitteeProfile,
+    });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+const updateCommitteeByAdmin = async (req, res) => {
+  try {
+    const { committeeId } = req.params;
+    if (!committeeId) {
+      return res
+        .status(400)
+        .json({ status: false, message: "No committeeId provided" });
+    }
+
+    // Check if committee exists
+    const existingCommittee = await Committee.findById(committeeId.trim());
+    if (!existingCommittee) {
+      return res
+        .status(404)
+        .json({ status: false, message: "Committee Profile Not Found!" });
+    }
+
+    // Allowed fields to update
+    const allowedFields = [
+      "committeeTitle",
+      "presidentName",
+      "subCaste",
+      "city",
+      "area",
+      "mobileNo",
+    ];
+    const updateData = {};
+
+    // Validate and copy allowed fields
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    });
+
+    // Validate mobile number format
+    if (updateData.mobileNo) {
+      const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
+      if (!mobileRegex.test(updateData.mobileNo)) {
+        return res.status(400).json({
+          status: false,
+          message:
+            "Invalid mobile number. Please enter a valid 10-digit mobile number.",
+        });
+      }
+    }
+
+    // Handle photoUrl upload via multer (req.files.photoUrl)
+    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
+      const uploadedPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+      updateData.photoUrl = uploadedPath;
+    }
+
+    // Ensure there is something to update
+    if (Object.keys(updateData).length === 0) {
+      return res
+        .status(400)
+        .json({ status: false, message: "No valid fields to update." });
+    }
+
+    // Perform the update
+    const updatedCommittee = await Committee.findByIdAndUpdate(
+      committeeId.trim(),
+      { $set: updateData },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: "Committee updated successfully.",
+      data: updatedCommittee,
+    });
+  } catch (err) {
+    console.error("Error updating committee:", err);
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
 const createFirstAdmin = async (req, res) => {
   try {
     const { mobileNo, password, name } = req.body;
@@ -2035,174 +2204,7 @@ const updateUserAccess = async (req, res) => {
   }
 };
 
-const committeeByAdmin = async (req, res) => {
-  try {
-    const adminUserId = req?.admin?._id;
 
-    // Check if the requester is an admin
-    const adminProfile = await Admin.findOne({ _id: adminUserId });
-    if (!adminProfile) {
-      return res.status(400).json({
-        status: false,
-        message: "Access denied! Only admin can create committee profiles on behalf of Activist.",
-      });
-    }
-
-    // Get fields from request body (populated via multer for file upload)
-    const {
-      activistId,
-      committeeTitle,
-      presidentName,
-      subCaste,
-      city,
-      area,
-      mobileNo,
-    } = req.body;
-
-    // Validate required fields
-    if (
-      !activistId ||
-      !committeeTitle ||
-      !presidentName ||
-      !subCaste ||
-      !city ||
-      !area ||
-      !mobileNo
-    ) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Please enter all required fields!" });
-    }
-
-    // Validate activist ID (Assuming it's a 6-digit code like 'XX0001')
-    if (!/^[A-Z]{2}[0-9]{4}$/.test(activistId)) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid activist ID! It should be in the format 'XX0001' to 'ZZ9999'.",
-      });
-    }
-
-    // Find the activist by their unique ID
-    const activistProfile = await Activist.findOne({ activistId });
-
-    if (!activistProfile) {
-      return res.status(400).json({
-        status: false,
-        message: "Activist not found! Please check the ID.",
-      });
-    }
-
-    const userId = activistProfile.userId;
-
-    // Handle photo file upload via multer (req.files)
-    let photoUrlPath = null;
-    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
-      // Save file path, replacing backslashes
-      photoUrlPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
-    }
-
-    // Create new committee profile
-    const newCommitteeProfile = new Committee({
-      userId,
-      activistId: activistProfile._id,
-      committeeTitle,
-      presidentName,
-      subCaste,
-      city,
-      area,
-      photoUrl: photoUrlPath,
-      mobileNo,
-    });
-
-    await newCommitteeProfile.save();
-
-    return res.status(200).json({
-      status: true,
-      message: "Committee Profile Created Successfully!",
-      data: newCommitteeProfile,
-    });
-  } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
-  }
-};
-
-const updateCommitteeByAdmin = async (req, res) => {
-  try {
-    const { committeeId } = req.params;
-    if (!committeeId) {
-      return res
-        .status(400)
-        .json({ status: false, message: "No committeeId provided" });
-    }
-
-    // Check if committee exists
-    const existingCommittee = await Committee.findById(committeeId.trim());
-    if (!existingCommittee) {
-      return res
-        .status(404)
-        .json({ status: false, message: "Committee Profile Not Found!" });
-    }
-
-    // Allowed fields to update
-    const allowedFields = [
-      "committeeTitle",
-      "presidentName",
-      "subCaste",
-      "city",
-      "area",
-      "mobileNo",
-    ];
-    const updateData = {};
-
-    // Validate and copy allowed fields
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updateData[field] = req.body[field];
-      }
-    });
-
-    // Validate mobile number format
-    if (updateData.mobileNo) {
-      const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
-      if (!mobileRegex.test(updateData.mobileNo)) {
-        return res.status(400).json({
-          status: false,
-          message:
-            "Invalid mobile number. Please enter a valid 10-digit mobile number.",
-        });
-      }
-    }
-
-    // Handle photoUrl upload via multer (req.files.photoUrl)
-    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
-      const uploadedPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
-      updateData.photoUrl = uploadedPath;
-    }
-
-    // Ensure there is something to update
-    if (Object.keys(updateData).length === 0) {
-      return res
-        .status(400)
-        .json({ status: false, message: "No valid fields to update." });
-    }
-
-    // Perform the update
-    const updatedCommittee = await Committee.findByIdAndUpdate(
-      committeeId.trim(),
-      { $set: updateData },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      status: true,
-      message: "Committee updated successfully.",
-      data: updatedCommittee,
-    });
-  } catch (err) {
-    console.error("Error updating committee:", err);
-    return res.status(500).json({ status: false, message: err.message });
-  }
-};
 
 const deleteCommiteeByAdmin = async (req, res) => {
   try {

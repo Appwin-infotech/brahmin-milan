@@ -2,6 +2,30 @@ const Activist = require("../models/activist");
 const Committee = require("../models/committee");
 const Report = require("../models/report");
 const SavedProfile = require("../models/savedProfiles");
+const fs = require("fs");
+const path = require("path");
+const { BASE_URL } = require("../utils/constants");
+
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
+
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
+
+// Deletes every file Multer wrote for this request (photoUrl field).
+// Call on any early-return/error path so rejected requests don't leak files.
+const cleanupUploadedFiles = (files) => {
+  if (!files?.photoUrl) return;
+  files.photoUrl.forEach((f) => fs.unlink(f.path, () => { }));
+};
 
 //create committee profile
 const createCommittee = async (req, res) => {
@@ -24,6 +48,7 @@ const createCommittee = async (req, res) => {
       !city ||
       !mobileNo
     ) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Please Enter Required Fields!",
@@ -32,6 +57,7 @@ const createCommittee = async (req, res) => {
 
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (!mobileRegex.test(mobileNo)) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid mobile number! Please enter a valid mobile number.",
@@ -41,6 +67,7 @@ const createCommittee = async (req, res) => {
     const activistProfile = await Activist.findOne({ userId: userId });
 
     if (!activistProfile) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message:
@@ -49,6 +76,7 @@ const createCommittee = async (req, res) => {
     }
 
     if (activistProfile.access === "disable") {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message:
@@ -56,10 +84,10 @@ const createCommittee = async (req, res) => {
       });
     }
 
-    // Handle photo upload via req.files
+    // 🔹 Build local image URL from the file Multer already saved to /uploads
     let photoUrlPath = null;
     if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
-      photoUrlPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+      photoUrlPath = buildImageUrl(req.files.photoUrl[0].filename);
     }
 
     const newCommitteeProfile = new Committee({
@@ -70,11 +98,17 @@ const createCommittee = async (req, res) => {
       subCaste,
       city,
       area,
-      photoUrl: photoUrlPath,  // Saved file path from multer
+      photoUrl: photoUrlPath,
       mobileNo,
     });
 
-    await newCommitteeProfile.save();
+    try {
+      await newCommitteeProfile.save();
+    } catch (saveErr) {
+      // DB save failed — the uploaded photo is now orphaned, clean it up
+      if (photoUrlPath) deleteLocalImage(photoUrlPath);
+      throw saveErr;
+    }
 
     return res.status(200).json({
       status: true,
@@ -82,10 +116,10 @@ const createCommittee = async (req, res) => {
       data: newCommitteeProfile,
     });
   } catch (err) {
+    cleanupUploadedFiles(req.files);
     res.status(500).json({ status: false, message: err.message });
   }
 };
-
 
 const updateCommittee = async (req, res) => {
   try {
@@ -93,6 +127,7 @@ const updateCommittee = async (req, res) => {
     const dataForUpdate = req?.body;
 
     if (!dataForUpdate) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Data is required for updating Committee Profile!",
@@ -102,51 +137,65 @@ const updateCommittee = async (req, res) => {
     // Validate mobile number format
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
     if (dataForUpdate.mobileNo && !mobileRegex.test(dataForUpdate.mobileNo)) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid mobile number. Please enter a valid 10-digit mobile number.",
       });
     }
 
-    // Handle photoUrl upload via multer (req.files.photoUrl)
-    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
-      const uploadedPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
-      dataForUpdate.photoUrl = uploadedPath;
-    }
-
-    // Check if committee profile exists
+    // Check if committee profile exists (fetched early so we can clean up old photo)
     const existingCommitteeProfile = await Committee.findById(committeeId);
     if (!existingCommitteeProfile) {
+      cleanupUploadedFiles(req.files);
       return res.status(404).json({
         status: false,
         message: "Committee Profile Not Found!",
       });
     }
 
+    // 🔹 Handle photoUrl upload via Multer (local /uploads)
+    if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
+      dataForUpdate.photoUrl = buildImageUrl(req.files.photoUrl[0].filename);
+    }
+
     // Update committee profile and return the updated document
-    const updatedCommittee = await Committee.findByIdAndUpdate(
-      committeeId,
-      { $set: dataForUpdate },
-      { new: true } // Return the updated document
-    );
+    let updatedCommittee;
+    try {
+      updatedCommittee = await Committee.findByIdAndUpdate(
+        committeeId,
+        { $set: dataForUpdate },
+        { new: true }
+      );
+    } catch (updateErr) {
+      // DB update failed — the newly uploaded photo is orphaned, clean it up
+      if (dataForUpdate.photoUrl) deleteLocalImage(dataForUpdate.photoUrl);
+      throw updateErr;
+    }
 
     if (!updatedCommittee) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "No changes were made to the Committee.",
       });
     }
 
+    // Success — delete the old photo now that the new one is confirmed saved
+    if (dataForUpdate.photoUrl && existingCommitteeProfile.photoUrl) {
+      deleteLocalImage(existingCommitteeProfile.photoUrl);
+    }
+
     return res.status(200).json({
       status: true,
       message: "Committee profile updated successfully.",
-      data: updatedCommittee,  // Return updated document here
+      data: updatedCommittee,
     });
   } catch (err) {
+    cleanupUploadedFiles(req.files);
     res.status(500).json({ status: false, message: err.message });
   }
 };
-
 
 //view Committee Profile
 const viewCommittee = async (req, res) => {
