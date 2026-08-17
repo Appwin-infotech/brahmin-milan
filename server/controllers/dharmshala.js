@@ -5,12 +5,10 @@ const Report = require("../models/report");
 const SavedProfile = require("../models/savedProfiles");
 const fs = require("fs");
 const path = require("path");
+const { BASE_URL } = require("../utils/constants");
 
-// Builds the public URL for a file Multer just saved to /uploads
-const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
 
-// Deletes a local uploads/ file given its public URL. Safe no-op for
-// non-local (e.g. leftover Cloudinary) URLs or missing files.
 const deleteLocalImage = (imageUrl) => {
   if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
   const filename = imageUrl.split("/uploads/")[1];

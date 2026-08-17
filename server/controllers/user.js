@@ -5,7 +5,6 @@ const Kathavachak = require("../models/kathavachak");
 const Pandit = require("../models/pandit");
 const ConnectionRequest = require("../models/connectionRequest");
 const jwt = require("jsonwebtoken");
-const cloudinary = require("cloudinary").v2;
 const Biodata = require("../models/biodata");
 const mongoose = require("mongoose");
 const { getNextUserId } = require("../utils/getNextUserId");
@@ -28,11 +27,78 @@ const ActivistRequest = require("../models/activistRequest");
 const Notification = require("../models/notification");
 const SuccessStory = require("../models/successStory");
 const SuccessStoryRequest = require("../models/successStoryRequest");
-const { BASE_URL } = require("../utils/constants");
-const { uploadImageToCloudinary } = require("../utils/imageUploader");
 //require data fields
 const USER_SAFE_DATA = "username dob mobileNo gender city";
 // sign up user
+const fs = require("fs");
+const path = require("path");
+const { BASE_URL } = require("../utils/constants");
+
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
+
+const deleteLocalImage = (imageUrl) => {
+  if (typeof imageUrl !== "string" || !imageUrl.includes("/uploads/")) return;
+  const filename = imageUrl.split("/uploads/")[1];
+  if (!filename) return;
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+  fs.unlink(filePath, (err) => {
+    if (err && err.code !== "ENOENT") {
+      console.error(`Failed to delete ${filePath}:`, err.message);
+    }
+  });
+};
+
+const updateProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        status: false,
+        message: "No file uploaded!",
+        error: "File field is missing",
+      });
+    }
+
+    const loggedInUser = req.user;
+    if (!loggedInUser) {
+      // clean up the file Multer already wrote before rejecting
+      fs.unlink(req.file.path, () => { });
+      return res.status(401).json({ status: false, message: "Unauthorized." });
+    }
+
+    // Keep a reference to the old image so we can delete it after a successful update
+    const oldPhotoUrl = loggedInUser.photoUrl;
+
+    // Build full image URL (consistent with createEventPost)
+    const newPhotoUrl = buildImageUrl(req.file.filename);
+
+    loggedInUser.photoUrl = newPhotoUrl;
+
+    try {
+      await loggedInUser.save();
+    } catch (saveErr) {
+      // DB save failed — clean up the newly uploaded file since it's now orphaned
+      fs.unlink(req.file.path, () => { });
+      throw saveErr;
+    }
+
+    // Only delete the old image after the new one is confirmed saved
+    if (oldPhotoUrl) {
+      deleteLocalImage(oldPhotoUrl);
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "Profile image updated successfully.",
+      data: {
+        userId: loggedInUser._id,
+        photoUrl: loggedInUser.photoUrl,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
 const SignUp = async (req, res) => {
   try {
     const { mobileNo, username, city, gender, password, otp } =
@@ -440,41 +506,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
-const updateProfileImage = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        status: false,
-        message: "No file uploaded!",
-        error: "File field is missing",
-      });
-    }
 
-    const loggedInUser = req.user;
-    if (!loggedInUser) {
-      return res.status(401).json({ status: false, message: "Unauthorized." });
-    }
-
-    // Build relative path to store in DB
-    const filePath = `uploads/${req.file.filename}`;
-
-    // Update user's profile image URL
-    loggedInUser.photoUrl = filePath;
-
-    await loggedInUser.save();
-
-    return res.status(200).json({
-      status: true,
-      message: "Profile image updated successfully.",
-      data: {
-        userId: loggedInUser._id,
-        photoUrl: loggedInUser.photoUrl,
-      },
-    });
-  } catch (err) {
-    return res.status(500).json({ status: false, message: err.message });
-  }
-};
 
 const deleteProfileImage = async (req, res) => {
   try {
@@ -1711,6 +1743,16 @@ const changePassword = async (req, res) => {
 };
 
 //updating the profiles by refering its profile type
+const cleanupUploadedFiles = (files) => {
+  if (!files) return;
+  const allFiles = [
+    ...(files.profilePhoto || []),
+    ...(files.additionalPhotos || []),
+  ];
+  allFiles.forEach((f) => fs.unlink(f.path, () => { }));
+};
+
+//updating the profiles by refering its profile type
 const updateServiceProfiles = async (req, res) => {
   try {
     const { profileType } = req.params;
@@ -1730,51 +1772,47 @@ const updateServiceProfiles = async (req, res) => {
     };
 
     if (!profileType) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Profile type is required!",
       });
     }
 
-    const ProfileModel = getProfileModel(profileType);
+    let ProfileModel;
+    try {
+      ProfileModel = getProfileModel(profileType);
+    } catch (e) {
+      cleanupUploadedFiles(req.files);
+      return res.status(400).json({
+        status: false,
+        message: "Invalid profile type.",
+      });
+    }
 
     const existingProfile = await ProfileModel.findOne({ userId });
     if (!existingProfile) {
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: `${profileType} Profile Not Found!`,
       });
     }
 
-    // 🔹 Handle profilePhoto upload via Cloudinary - max 1
+    // 🔹 Handle profilePhoto upload via Multer (local /uploads) - max 1
     let profilePhotoUrl = null;
     if (req.files?.profilePhoto) {
-      const profilePhotoFiles = Array.isArray(req.files.profilePhoto)
-        ? req.files.profilePhoto
-        : [req.files.profilePhoto];
+      const profilePhotoFiles = req.files.profilePhoto;
 
       if (profilePhotoFiles.length > 1) {
+        cleanupUploadedFiles(req.files);
         return res.status(400).json({
           status: false,
           message: "Only 1 profile photo is allowed.",
         });
       }
 
-      const upload = await uploadImageToCloudinary(
-        profilePhotoFiles[0],
-        process.env.FOLDER_NAME || profileType.toLowerCase(),
-        1200,
-        600
-      );
-
-      if (!upload?.secure_url) {
-        return res.status(500).json({
-          status: false,
-          message: "Profile photo upload failed.",
-        });
-      }
-
-      profilePhotoUrl = upload.secure_url;
+      profilePhotoUrl = buildImageUrl(profilePhotoFiles[0].filename);
     }
 
     let additionalPhotosUrls = existingProfile.additionalPhotos || [];
@@ -1786,6 +1824,7 @@ const updateServiceProfiles = async (req, res) => {
         try {
           removeImages = JSON.parse(req.body.removeImages);
         } catch {
+          cleanupUploadedFiles(req.files);
           return res.status(400).json({
             status: false,
             message: "Invalid format for removeImages. It should be a JSON array.",
@@ -1796,38 +1835,24 @@ const updateServiceProfiles = async (req, res) => {
       }
     }
 
-    // Filter out images marked for removal
-    additionalPhotosUrls = additionalPhotosUrls.filter(
-      (imgUrl) => !removeImages.includes(imgUrl)
-    );
+    // Filter out images marked for removal, and delete them from disk
+    additionalPhotosUrls = additionalPhotosUrls.filter((imgUrl) => {
+      const shouldRemove = removeImages.includes(imgUrl);
+      if (shouldRemove) deleteLocalImage(imgUrl);
+      return !shouldRemove;
+    });
 
-    // 🔹 Upload newly added additionalPhotos via Cloudinary
+    // 🔹 Add newly uploaded additionalPhotos (already saved locally by Multer)
     if (req.files?.additionalPhotos) {
-      const additionalFiles = Array.isArray(req.files.additionalPhotos)
-        ? req.files.additionalPhotos
-        : [req.files.additionalPhotos];
-
-      for (let i = 0; i < additionalFiles.length; i++) {
-        const upload = await uploadImageToCloudinary(
-          additionalFiles[i],
-          process.env.FOLDER_NAME || profileType.toLowerCase(),
-          1200,
-          600
-        );
-
-        if (!upload?.secure_url) {
-          return res.status(500).json({
-            status: false,
-            message: "Additional photo upload failed.",
-          });
-        }
-
-        additionalPhotosUrls.push(upload.secure_url);
+      for (const file of req.files.additionalPhotos) {
+        additionalPhotosUrls.push(buildImageUrl(file.filename));
       }
     }
 
-    // Ensure only the last 5 images are kept
+    // Ensure only the last 5 images are kept — delete any that get trimmed off
     if (additionalPhotosUrls.length > 5) {
+      const trimmed = additionalPhotosUrls.slice(0, additionalPhotosUrls.length - 5);
+      trimmed.forEach((url) => deleteLocalImage(url));
       additionalPhotosUrls = additionalPhotosUrls.slice(-5);
     }
 
@@ -1855,6 +1880,7 @@ const updateServiceProfiles = async (req, res) => {
           parsedArray = JSON.parse(parsedArray);
           if (!Array.isArray(parsedArray)) throw new Error();
         } catch {
+          cleanupUploadedFiles(req.files);
           return res.status(400).json({
             status: false,
             message: `Invalid format for ${serviceField}. It should be a JSON array of strings.`,
@@ -1870,10 +1896,17 @@ const updateServiceProfiles = async (req, res) => {
     );
 
     if (updatedProfile.modifiedCount === 0) {
+      // No DB change — the newly uploaded files are now orphaned, clean them up
+      cleanupUploadedFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "No changes were made to the profile.",
       });
+    }
+
+    // Success — if profilePhoto was replaced, delete the old one now
+    if (profilePhotoUrl && existingProfile.profilePhoto) {
+      deleteLocalImage(existingProfile.profilePhoto);
     }
 
     return res.status(200).json({
@@ -1882,6 +1915,7 @@ const updateServiceProfiles = async (req, res) => {
       data: updatedProfile,
     });
   } catch (err) {
+    cleanupUploadedFiles(req.files);
     return res.status(500).json({
       status: false,
       message: "Internal server error",

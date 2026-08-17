@@ -9,9 +9,9 @@ const { sendNotificationToAdmin } = require("../socket/socket.server");
 const Notification = require("../models/notification");
 const fs = require("fs");
 const path = require("path");
+const { BASE_URL } = require("../utils/constants");
 
-// Builds the public URL for a file Multer just saved to /uploads
-const buildImageUrl = (filename) => `${process.env.BASE_URL}/uploads/${filename}`;
+const buildImageUrl = (filename) => `${BASE_URL}/uploads/${filename}`;
 
 // Deletes a local uploads/ file given its public URL. Safe no-op for
 // non-local (e.g. leftover Cloudinary) URLs or missing files.
@@ -26,7 +26,6 @@ const deleteLocalImage = (imageUrl) => {
     }
   });
 };
-
 
 const createKathavachakProfile = async (req, res) => {
   try {
@@ -124,7 +123,7 @@ const createKathavachakProfile = async (req, res) => {
       const profilePhotoFiles = req.files.profilePhoto;
 
       if (profilePhotoFiles.length > 1) {
-        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => { }));
         return res.status(400).json({
           status: false,
           message: "Only 1 profile photo is allowed.",
@@ -140,7 +139,7 @@ const createKathavachakProfile = async (req, res) => {
       const additionalFiles = req.files.additionalPhotos;
 
       if (additionalFiles.length > 5) {
-        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => { }));
         return res.status(400).json({
           status: false,
           message: "You can only upload a maximum of 5 additional photos.",
@@ -266,7 +265,7 @@ const updateKathavachakProfile = async (req, res) => {
       const profilePhotoFiles = req.files.profilePhoto;
 
       if (profilePhotoFiles.length > 1) {
-        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        profilePhotoFiles.forEach((f) => fs.unlink(f.path, () => { }));
         return res.status(400).json({
           status: false,
           message: "Only 1 profile photo is allowed.",
@@ -286,7 +285,7 @@ const updateKathavachakProfile = async (req, res) => {
       const additionalFiles = req.files.additionalPhotos;
 
       if (additionalFiles.length > 5) {
-        additionalFiles.forEach((f) => fs.unlink(f.path, () => {}));
+        additionalFiles.forEach((f) => fs.unlink(f.path, () => { }));
         return res.status(400).json({
           status: false,
           message: "You can only upload a maximum of 5 additional photos.",
@@ -363,9 +362,9 @@ const getKathavachakProfileById = async (req, res) => {
     const totalReviews = KathavachakProfile?.ratings?.length || 0;
     const averageRating = totalReviews
       ? KathavachakProfile.ratings.reduce(
-          (acc, rating) => acc + (rating?.rating || 0),
-          0
-        ) / totalReviews
+        (acc, rating) => acc + (rating?.rating || 0),
+        0
+      ) / totalReviews
       : 0;
     const roundedAverageRating = averageRating.toFixed(1);
 
@@ -627,13 +626,13 @@ const getAllKathavachak = async (req, res) => {
       // Experience filter
       ...(safeExperience !== null
         ? [
-            {
-              $match: {
-                $expr: { $gte: [{ $toInt: "$experience" }, safeExperience] },
-              },
+          {
+            $match: {
+              $expr: { $gte: [{ $toInt: "$experience" }, safeExperience] },
             },
-            { $addFields: { experienceNum: { $toInt: "$experience" } } },
-          ]
+          },
+          { $addFields: { experienceNum: { $toInt: "$experience" } } },
+        ]
         : []),
 
       // Saved profile check
@@ -667,10 +666,10 @@ const getAllKathavachak = async (req, res) => {
           rating && safeExperience !== null
             ? { averageRating: 1, experienceNum: -1 } // rating asc, then experience desc
             : rating
-            ? { averageRating: 1 } // only rating asc
-            : safeExperience !== null
-            ? { experienceNum: -1 } // only experience desc
-            : { createdAt: -1 }, // default latest
+              ? { averageRating: 1 } // only rating asc
+              : safeExperience !== null
+                ? { experienceNum: -1 } // only experience desc
+                : { createdAt: -1 }, // default latest
       },
     ]);
 

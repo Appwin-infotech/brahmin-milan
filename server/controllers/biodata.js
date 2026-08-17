@@ -33,6 +33,13 @@ const deleteCloseUpPhotoFile = (photoUrl) => {
   }
 };
 
+// Deletes every closeUpPhoto file Multer wrote for this request.
+// Call on any early-return/error path so rejected requests don't leak files.
+const cleanupUploadedCloseUpFiles = (files) => {
+  const closeUpFiles = files?.closeUpPhoto || [];
+  closeUpFiles.forEach((f) => deleteCloseUpPhotoFile(f.filename));
+};
+
 const createPersonalDetails = async (req, res) => {
   try {
     const isAdmin = req.user.role === "admin";
@@ -45,6 +52,7 @@ const createPersonalDetails = async (req, res) => {
       userId = req.body.targetUserId;
 
       if (!userId) {
+        cleanupUploadedCloseUpFiles(req.files);
         return res.status(400).json({
           status: false,
           message: "targetUserId is required when an admin creates biodata on behalf of a user.",
@@ -65,6 +73,7 @@ const createPersonalDetails = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Target user not found.",
@@ -83,6 +92,7 @@ const createPersonalDetails = async (req, res) => {
     );
 
     if (!hasValidSubscription) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "You do not have an active subscription for Biodata service.",
@@ -91,6 +101,7 @@ const createPersonalDetails = async (req, res) => {
 
     // Validate ContactNumber1
     if (!personalDetails?.contactNumber1) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "ContactNumber1 is required.",
@@ -98,6 +109,7 @@ const createPersonalDetails = async (req, res) => {
     }
 
     if (!mobileRegex.test(personalDetails.contactNumber1)) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
@@ -133,6 +145,8 @@ const createPersonalDetails = async (req, res) => {
     const existingBiodata = await Biodata.findOne({ userId });
 
     if (existingBiodata?.personalDetails != null) {
+      // Newly uploaded photos are now unused — clean them up before rejecting
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid Request! Personal Details already added for this user.",
@@ -141,7 +155,12 @@ const createPersonalDetails = async (req, res) => {
 
     if (existingBiodata) {
       existingBiodata.personalDetails = personalDetails;
-      await existingBiodata.save();
+      try {
+        await existingBiodata.save();
+      } catch (saveErr) {
+        cleanupUploadedCloseUpFiles(req.files);
+        throw saveErr;
+      }
       return res.status(200).json({
         status: true,
         message: "Biodata updated successfully.",
@@ -157,7 +176,13 @@ const createPersonalDetails = async (req, res) => {
       latestActivityAt: Date.now(),
     });
 
-    await biodata.save();
+    try {
+      await biodata.save();
+    } catch (saveErr) {
+      // DB save failed — the uploaded photos are now orphaned, clean them up
+      cleanupUploadedCloseUpFiles(req.files);
+      throw saveErr;
+    }
 
     // Update isMatrimonial flag for the TARGET user
     await updateUserProfileType(userId, "isMatrimonial");
@@ -201,6 +226,7 @@ const createPersonalDetails = async (req, res) => {
       data: biodata,
     });
   } catch (error) {
+    cleanupUploadedCloseUpFiles(req.files);
     console.error("Full error:", error);
     res.status(500).json({
       status: false,
@@ -220,6 +246,7 @@ const updatePersonalDetails = async (req, res) => {
     // Find the biodata document
     const biodata = await Biodata.findOne({ userId });
     if (!biodata) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "No biodata found. Use the create endpoint to add personal details.",
@@ -231,6 +258,7 @@ const updatePersonalDetails = async (req, res) => {
       personalDetails.contactNumber1 &&
       !mobileRegex.test(personalDetails.contactNumber1)
     ) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid ContactNumber1. Please enter a valid 10-digit mobile number.",
@@ -242,6 +270,7 @@ const updatePersonalDetails = async (req, res) => {
       personalDetails.contactNumber2 &&
       !mobileRegex.test(personalDetails.contactNumber2)
     ) {
+      cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,
         message: "Invalid ContactNumber2. Please enter a valid 10-digit mobile number.",
@@ -282,6 +311,8 @@ const updatePersonalDetails = async (req, res) => {
 
     // Step 3: Validate final count is within 1–3
     if (mergedPhotos.length < 1) {
+      // Clean up the newly-uploaded files since we're rejecting this request
+      newPhotoUrls.forEach((url) => deleteCloseUpPhotoFile(url));
       return res.status(400).json({
         status: false,
         message: "At least one close-up photo is required.",
@@ -311,7 +342,13 @@ const updatePersonalDetails = async (req, res) => {
       biodata.gender = gender;
     }
 
-    await biodata.save();
+    try {
+      await biodata.save();
+    } catch (saveErr) {
+      // DB save failed — the newly uploaded photos are orphaned, clean them up
+      newPhotoUrls.forEach((url) => deleteCloseUpPhotoFile(url));
+      throw saveErr;
+    }
 
     return res.status(200).json({
       status: true,

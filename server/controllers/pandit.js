@@ -321,7 +321,6 @@ const updatePanditProfile = async (req, res) => {
   }
 };
 
-
 //getPanditProfile of an specific user by its _id
 const getPanditProfileById = async (req, res) => {
   try {

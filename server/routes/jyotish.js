@@ -1,9 +1,9 @@
-const {Router}=require('express');
-const controller=require('../controllers/jyotish');
+const { Router } = require('express');
+const controller = require('../controllers/jyotish');
 const verifyToken = require("../middlewares/auth");
 const upload = require('../config/multerConfig');
 
-const router=Router();
+const router = Router();
 
 const jyotishPhotoUpload = upload.fields([
   { name: "profilePhoto", maxCount: 1 },
@@ -23,12 +23,12 @@ router.patch(
   jyotishPhotoUpload,
   controller.updateJyotishProfile
 );
-router.get("/jyotishProfileData/:id",verifyToken,controller.getJyotishProfileById);
-router.post("/addReviewRating",verifyToken,controller.addJyotishReviewRating);
-router.patch("/update-reviewRating",verifyToken,controller.updateJyotishReviewRating);
-router.get("/getAllJyotish",verifyToken,controller.getAllJyotish);
-router.get("/viewJyotish",verifyToken,controller.viewJyotish);
-router.get("/share-jyotishProfile/:id",verifyToken,controller.shareJyotishProfile); 
-router.delete("/delete-jyotishProfile",verifyToken,controller.deleteJyotishProfile);
+router.get("/jyotishProfileData/:id", verifyToken, controller.getJyotishProfileById);
+router.post("/addReviewRating", verifyToken, controller.addJyotishReviewRating);
+router.patch("/update-reviewRating", verifyToken, controller.updateJyotishReviewRating);
+router.get("/getAllJyotish", verifyToken, controller.getAllJyotish);
+router.get("/viewJyotish", verifyToken, controller.viewJyotish);
+router.get("/share-jyotishProfile/:id", verifyToken, controller.shareJyotishProfile);
+router.delete("/delete-jyotishProfile", verifyToken, controller.deleteJyotishProfile);
 
-module.exports=router;
+module.exports = router;
