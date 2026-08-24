@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const verifyToken = require("../middlewares/auth");
 const controller = require("../controllers/eventPost");
-const upload = require("../config/multerConfig");
+const { upload } = require("../config/multerConfig");
 
 const router = Router();
 

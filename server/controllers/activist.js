@@ -333,6 +333,28 @@ const updateActivistProfile = async (req, res) => {
   }
 };
 
+//view Activist Profile
+const viewActivist = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    const activist = await Activist.findOne({ userId });
+
+    if (!activist) {
+      return res
+        .status(400)
+        .json({ status: false, message: "Activist Profile Not Found!" });
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "Activist Profile Data Fetched Successfully.",
+      data: activist,
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
 const verifyMetrimonialProfile = async (req, res) => {
   try {
     const { _id: userId, role } = req.user;
@@ -405,28 +427,6 @@ const verifyMetrimonialProfile = async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
-  }
-};
-
-//view Activist Profile
-const viewActivist = async (req, res) => {
-  try {
-    const userId = req?.user?._id;
-    const activist = await Activist.findOne({ userId });
-
-    if (!activist) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Activist Profile Not Found!" });
-    }
-
-    return res.status(200).json({
-      status: true,
-      message: "Activist Profile Data Fetched Successfully.",
-      data: activist,
-    });
-  } catch (err) {
-    return res.status(500).json({ status: false, message: err.message });
   }
 };
 

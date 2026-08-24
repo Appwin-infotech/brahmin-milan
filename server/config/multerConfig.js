@@ -2,14 +2,24 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+
+if (!fs.existsSync(UPLOAD_ROOT)) {
+  fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+}
+
+const closeUpPhotoDir = path.join(UPLOAD_ROOT, 'closeUpPhoto');
+if (!fs.existsSync(closeUpPhotoDir)) {
+  fs.mkdirSync(closeUpPhotoDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    if (file.fieldname === 'closeUpPhoto') {
+      cb(null, closeUpPhotoDir);
+    } else {
+      cb(null, UPLOAD_ROOT);
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -36,4 +46,4 @@ const upload = multer({
   fileFilter
 });
 
-module.exports = upload;
+module.exports = { upload, UPLOAD_ROOT };

@@ -9,7 +9,7 @@ const activistController = require("../controllers/activist");
 const successStoryController = require("../controllers/successStory");
 const advertisementController = require("../controllers/advertisement")
 const verifyAdminToken = require("../middlewares/authAdmin");
-const upload = require('../config/multerConfig');
+const { upload } = require("../config/multerConfig");
 
 const router = Router();
 

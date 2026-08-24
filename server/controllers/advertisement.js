@@ -2,7 +2,7 @@
 const { errorMonitor } = require("nodemailer/lib/xoauth2");
 const Advertisement = require("../models/advertisementSchema");
 const DefaultAdvertisementImage = require("../models/defaultAdvertisementImage");
-// const upload = require("../config/multerConfig"); // Import multer config
+// const { upload } = require("../config/multerConfig"); // Import multer config
 
 // Multer middleware for single or multiple files
 // const uploadFiles = upload.array('media', 10); // 'media' is the field name, and we limit to 10 files

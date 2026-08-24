@@ -4,7 +4,7 @@ const subscriptionController = require("../controllers/subscription");
 const successStoryController = require("../controllers/successStory");
 const advertisementController = require("../controllers/advertisement");
 const verifyToken = require("../middlewares/auth");
-const upload = require('../config/multerConfig');
+const { upload } = require("../config/multerConfig");
 
 const router = Router();
 

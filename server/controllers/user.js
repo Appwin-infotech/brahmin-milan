@@ -27,9 +27,8 @@ const ActivistRequest = require("../models/activistRequest");
 const Notification = require("../models/notification");
 const SuccessStory = require("../models/successStory");
 const SuccessStoryRequest = require("../models/successStoryRequest");
-//require data fields
+
 const USER_SAFE_DATA = "username dob mobileNo gender city";
-// sign up user
 const fs = require("fs");
 const path = require("path");
 const { BASE_URL } = require("../utils/constants");
@@ -58,17 +57,20 @@ const updateProfileImage = async (req, res) => {
       });
     }
 
-    const loggedInUser = req.user;
-    if (!loggedInUser) {
-      // clean up the file Multer already wrote before rejecting
-      fs.unlink(req.file.path, () => { });
+    if (!req.user || !req.user._id) {
+      fs.unlink(req.file.path, () => {});
       return res.status(401).json({ status: false, message: "Unauthorized." });
     }
 
-    // Keep a reference to the old image so we can delete it after a successful update
+    const loggedInUser = await User.findById(req.user._id);
+
+    if (!loggedInUser) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ status: false, message: "User not found." });
+    }
+
     const oldPhotoUrl = loggedInUser.photoUrl;
 
-    // Build full image URL (consistent with createEventPost)
     const newPhotoUrl = buildImageUrl(req.file.filename);
 
     loggedInUser.photoUrl = newPhotoUrl;
@@ -76,12 +78,10 @@ const updateProfileImage = async (req, res) => {
     try {
       await loggedInUser.save();
     } catch (saveErr) {
-      // DB save failed — clean up the newly uploaded file since it's now orphaned
-      fs.unlink(req.file.path, () => { });
+      fs.unlink(req.file.path, () => {});
       throw saveErr;
     }
 
-    // Only delete the old image after the new one is confirmed saved
     if (oldPhotoUrl) {
       deleteLocalImage(oldPhotoUrl);
     }
@@ -95,6 +95,10 @@ const updateProfileImage = async (req, res) => {
       },
     });
   } catch (err) {
+    if (req.file) {
+      fs.unlink(req.file.path, () => {});
+    }
+    console.error("updateProfileImage error:", err);
     return res.status(500).json({ status: false, message: err.message });
   }
 };
