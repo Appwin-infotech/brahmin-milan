@@ -1,3 +1,4 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import {
   AiFillEdit,
   AiOutlineRollback,
@@ -321,15 +322,14 @@ const SingleUserPKA = () => {
                 </div>
               ) : (
                 editMode && (
-                  <label className="h-24 w-24 flex items-center justify-center border-2 border-dashed rounded cursor-pointer">
-                    <input
+                  <div className="w-full border-2 border-dashed rounded p-3">
+                    <ImageUploadInput
                       type="file"
-                      accept="image/*"
+                      aria-label="Profile photo"
                       onChange={handleProfilePhotoChange}
-                      className="hidden"
+                      className="w-full text-sm"
                     />
-                    <span className="text-gray-400">+</span>
-                  </label>
+                  </div>
                 )
               )}
             </div>
@@ -364,9 +364,8 @@ const SingleUserPKA = () => {
               ))}
               {/* {editMode && additionalPhotos.length < 5 && (
       <label className="h-24 w-24 flex items-center justify-center border-2 border-dashed rounded cursor-pointer">
-        <input
+        <ImageUploadInput maxFiles={5 - additionalPhotos.length}
           type="file"
-          accept="image/*"
           multiple
           onChange={handleAdditionalPhotosChange}
           className="hidden"

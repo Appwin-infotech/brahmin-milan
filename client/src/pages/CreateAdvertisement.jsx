@@ -1,5 +1,8 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
+import { validateImageFiles } from "../utils/imageValidation";
 import React, { useState, useEffect } from "react";
-import { BASE_URL, IMAGE_URL } from "../utils/constants";
+import { BASE_URL } from "../utils/constants";
+import { getAdvertisementMediaUrl } from "../utils/imageHelpers";
 import PageHeader from "../components/common/PageHeader";
 import { AiFillPlusCircle, AiOutlineUserAdd } from "react-icons/ai";
 import { FaEdit, FaEye, FaSpinner, FaTrashAlt } from "react-icons/fa";
@@ -199,6 +202,11 @@ const CreateAdvertisement = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
 
+    const imageError = validateImageFiles(editMediaFiles, {
+      maxFiles: editForm.section === "Bottom" ? 1 : 10,
+    });
+    if (imageError) { alert(imageError); return; }
+
     const fd = new FormData();
     fd.append("title", editForm.title);
     fd.append("description", editForm.description);
@@ -288,8 +296,10 @@ const CreateAdvertisement = () => {
     if (!form.section.trim()) errs.section = "Section required";
     if (!form.targetProfileTypes.length)
       errs.targetProfileTypes = "Select at least one profile type";
-    if (!mediaFiles.length)
-      errs.mediaFiles = "At least one media file is required";
+    const imageError = validateImageFiles(mediaFiles, {
+      required: true, maxFiles: form.section === "Bottom" ? 1 : 10,
+    });
+    if (imageError) errs.mediaFiles = imageError;
     mediaMeta.forEach((m, i) => {
       if (!m.duration || !m.resolution.width || !m.resolution.height) {
         errs[`mediaMeta-${i}`] = "Fill duration & resolution";
@@ -644,7 +654,7 @@ const CreateAdvertisement = () => {
                   </td>
                   <td className="px-4 py-2 space-y-1">
                     {ad.media.map((m, i) => {
-                      const url = `${IMAGE_URL}${m.mediaUrl}`;
+                      const url = getAdvertisementMediaUrl(m.mediaUrl);
                       return m.mediaType === "video" ? (
                         <video key={i} src={url} width="80" controls />
                       ) : (
@@ -882,10 +892,9 @@ const CreateAdvertisement = () => {
                 <label className="block font-semibold mb-2">
                   Media Files *
                 </label>
-                <input
+                <ImageUploadInput maxFiles={(form.section === "Bottom" ? 1 : 10) - mediaFiles.length}
                   type="file"
                   multiple
-                  accept="image/*,video/*"
                   onChange={handleFileChange}
                   className="w-full text-sm"
                 />
@@ -1029,9 +1038,7 @@ const CreateAdvertisement = () => {
             {/* Media Preview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
               {selectedAdvertisement.media?.map((item, idx) => {
-                const url = item.mediaUrl
-                  ? `${BASE_URL}/${item.mediaUrl}`
-                  : null;
+                const url = getAdvertisementMediaUrl(item.mediaUrl);
                 return (
                   <div key={idx} className="flex flex-col items-center">
                     {url ? (
@@ -1202,10 +1209,9 @@ const CreateAdvertisement = () => {
               ))}
             </select>
             {/* Media upload */}
-            <input
+            <ImageUploadInput maxFiles={editForm.section === "Bottom" ? 1 : 10}
               type="file"
               multiple
-              accept="image/*,video/*"
               onChange={e => setEditMediaFiles(Array.from(e.target.files))}
             />
             {/* Optionally show existing media */}
@@ -1213,9 +1219,9 @@ const CreateAdvertisement = () => {
               {editForm.media && editForm.media.map((m, idx) => (
                 <div key={idx}>
                   {m.mediaType === "image" ? (
-                    <img src={`${BASE_URL}/${m.mediaUrl}`} alt="" className="w-20 h-12 object-cover rounded" />
+                    <img src={getAdvertisementMediaUrl(m.mediaUrl)} alt="" className="w-20 h-12 object-cover rounded" />
                   ) : (
-                    <video src={`${BASE_URL}/${m.mediaUrl}`} className="w-20 h-12 object-cover rounded" controls />
+                    <video src={getAdvertisementMediaUrl(m.mediaUrl)} className="w-20 h-12 object-cover rounded" controls />
                   )}
                 </div>
               ))}

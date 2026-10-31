@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { IMAGE_URL } from "../../utils/constants";
+import { getPhotoUrl } from "../../utils/imageHelpers";
 
 const RequestsSection = ({ requests }) => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ const RequestsSection = ({ requests }) => {
           >
             {req.profilePhoto && (
               <img
-                src={IMAGE_URL+req.profilePhoto}
+                src={getPhotoUrl(req.profilePhoto)}
                 alt={req.fullName}
                 className="w-20 h-20 rounded-full object-cover border"
               />

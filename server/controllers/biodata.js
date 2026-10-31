@@ -14,6 +14,7 @@ const { sendNotificationToAdmin } = require("../socket/socket.server");
 const { updateUserProfileType } = require("./user");
 const { BASE_URL } = require("../utils/constants");
 const { UPLOAD_ROOT } = require("../config/multerConfig");
+const { resolveBiodataPhotos, PhotoValidationError } = require("../utils/biodataPhotos");
 
 // Build a public URL for a stored file
 const buildCloseUpPhotoUrl = (filename) =>
@@ -23,7 +24,9 @@ const buildCloseUpPhotoUrl = (filename) =>
 const deleteCloseUpPhotoFile = (photoUrl) => {
   try {
     if (!photoUrl) return;
-    const filename = photoUrl.split("/").pop();
+    if (typeof photoUrl !== "string") return;
+    const filename = photoUrl.replace(/\\/g, "/").split(/[?#]/)[0].split("/").pop();
+    if (!filename || filename === "." || filename === "..") return;
     const filePath = path.join(UPLOAD_ROOT, "closeUpPhoto", filename);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -41,6 +44,7 @@ const cleanupUploadedCloseUpFiles = (files) => {
 };
 
 const createPersonalDetails = async (req, res) => {
+  let saved = false;
   try {
     const isAdmin = req.user.role === "admin";
 
@@ -157,6 +161,7 @@ const createPersonalDetails = async (req, res) => {
       existingBiodata.personalDetails = personalDetails;
       try {
         await existingBiodata.save();
+        saved = true;
       } catch (saveErr) {
         cleanupUploadedCloseUpFiles(req.files);
         throw saveErr;
@@ -178,6 +183,7 @@ const createPersonalDetails = async (req, res) => {
 
     try {
       await biodata.save();
+      saved = true;
     } catch (saveErr) {
       // DB save failed — the uploaded photos are now orphaned, clean them up
       cleanupUploadedCloseUpFiles(req.files);
@@ -226,7 +232,7 @@ const createPersonalDetails = async (req, res) => {
       data: biodata,
     });
   } catch (error) {
-    cleanupUploadedCloseUpFiles(req.files);
+    if (!saved) cleanupUploadedCloseUpFiles(req.files);
     console.error("Full error:", error);
     res.status(500).json({
       status: false,
@@ -240,7 +246,7 @@ const createPersonalDetails = async (req, res) => {
 const updatePersonalDetails = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { gender, removePhotos, ...personalDetails } = req.body;
+    const { gender, removePhotos, closeUpPhoto: retainedPhotos, ...personalDetails } = req.body;
     const mobileRegex = /^(?:\+91|91|0)?[6-9]\d{9}$/;
 
     // Find the biodata document
@@ -277,60 +283,16 @@ const updatePersonalDetails = async (req, res) => {
       });
     }
 
-    // ─── Handle closeUpPhoto array ────────────────────────────────────────────
-
-    // Start with existing photos
-    let existingPhotos = biodata.personalDetails?.closeUpPhoto || [];
-
-    // Step 1: Remove photos if client sent removePhotos (URL or array of URLs)
-    if (removePhotos) {
-      let toRemove = removePhotos;
-      if (typeof toRemove === "string") {
-        try {
-          toRemove = JSON.parse(toRemove);
-        } catch {
-          toRemove = [toRemove];
-        }
-      }
-      if (!Array.isArray(toRemove)) toRemove = [toRemove];
-
-      existingPhotos = existingPhotos.filter((p) => !toRemove.includes(p));
-
-      // 🔹 Delete the actual files from disk
-      toRemove.forEach((photoUrl) => deleteCloseUpPhotoFile(photoUrl));
-    }
-
-    // 🔹 Step 2: New files uploaded via Multer (local disk)
-    // With upload.fields(...), req.files is an object keyed by fieldname
-    const newCloseUpFiles = req.files?.closeUpPhoto || [];
-    const newPhotoUrls = newCloseUpFiles.map((file) =>
+    // New uploads append by default. Explicit removals or a retained URL list
+    // determine which existing photos remain before validating the final count.
+    const newPhotoUrls = (req.files?.closeUpPhoto || []).map((file) =>
       buildCloseUpPhotoUrl(file.filename)
     );
-
-    const mergedPhotos = [...existingPhotos, ...newPhotoUrls];
-
-    // Step 3: Validate final count is within 1–3
-    if (mergedPhotos.length < 1) {
-      // Clean up the newly-uploaded files since we're rejecting this request
-      newPhotoUrls.forEach((url) => deleteCloseUpPhotoFile(url));
-      return res.status(400).json({
-        status: false,
-        message: "At least one close-up photo is required.",
-      });
-    }
-
-    if (mergedPhotos.length > 3) {
-      // Clean up the newly-uploaded files since we're rejecting this request
-      newPhotoUrls.forEach((url) => deleteCloseUpPhotoFile(url));
-      return res.status(400).json({
-        status: false,
-        message: `Too many photos. You can have a maximum of 3 close-up photos. Currently you would have ${mergedPhotos.length}.`,
-      });
-    }
-
-    personalDetails.closeUpPhoto = mergedPhotos;
-
-    // ──────────────────────────────────────────────────────────────────────────
+    const { photos, removedPhotos } = resolveBiodataPhotos(
+      biodata.personalDetails?.closeUpPhoto || [],
+      { removePhotos, retainedPhotos, newPhotos: newPhotoUrls }
+    );
+    personalDetails.closeUpPhoto = photos;
 
     // Merge personal details with existing ones
     biodata.personalDetails = {
@@ -342,13 +304,10 @@ const updatePersonalDetails = async (req, res) => {
       biodata.gender = gender;
     }
 
-    try {
-      await biodata.save();
-    } catch (saveErr) {
-      // DB save failed — the newly uploaded photos are orphaned, clean them up
-      newPhotoUrls.forEach((url) => deleteCloseUpPhotoFile(url));
-      throw saveErr;
-    }
+    await biodata.save();
+
+    // Delete only this biodata's removed files after the database accepts the edit.
+    removedPhotos.forEach(deleteCloseUpPhotoFile);
 
     return res.status(200).json({
       status: true,
@@ -356,6 +315,10 @@ const updatePersonalDetails = async (req, res) => {
       data: biodata,
     });
   } catch (error) {
+    cleanupUploadedCloseUpFiles(req.files);
+    if (error instanceof PhotoValidationError) {
+      return res.status(400).json({ status: false, message: error.message });
+    }
     console.error("Full error:", error);
     res.status(500).json({
       status: false,

@@ -1,15 +1,19 @@
-import { IMAGE_URL } from "./constants";
+import { BASE_URL, IMAGE_URL } from "./constants";
 
-export const getPhotoUrl = (photo) => {
-    if (!photo || typeof photo !== "string") return null;
+export const getPhotoUrl = (mediaUrl) => {
+    if (!mediaUrl || typeof mediaUrl !== "string") return null;
+    if (/^(https?:\/\/|blob:|data:)/i.test(mediaUrl)) return mediaUrl;
 
-    if (photo.startsWith("http://") || photo.startsWith("https://")) {
-        return photo;
-    }
-    const base = IMAGE_URL.replace(/\/+$/, "");
-    const path = photo.replace(/^\/+/, "");
-    return `${base}/${path}`;
+    const normalized = mediaUrl.replace(/\\/g, "/");
+    const uploadsIndex = normalized.lastIndexOf("/uploads/");
+    const publicPath = uploadsIndex >= 0
+        ? normalized.slice(uploadsIndex + 1)
+        : normalized.replace(/^\/+/, "");
+    const base = (IMAGE_URL || BASE_URL || "").replace(/\/+$/, "");
+    return `${base}/${publicPath}`;
 };
+
+export const getAdvertisementMediaUrl = getPhotoUrl;
 
 export const getPhotoUrls = (photoOrPhotos) => {
     if (!photoOrPhotos) return [];

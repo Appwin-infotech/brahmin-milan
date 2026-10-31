@@ -54,6 +54,10 @@ exports.createSubscriptionPlan = async (req, res) => {
       return res.status(400).json({ status: false, error: "Invalid profile type." });
     }
 
+    if (!req.file) {
+      return res.status(400).json({ status: false, error: "An image is required to create a subscription plan." });
+    }
+
     // Prepare new plan object
     const newPlanData = { profileType, trialPeriod, duration, amount, description };
 

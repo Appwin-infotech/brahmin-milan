@@ -2,7 +2,7 @@ import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AiOutlineRollback } from "react-icons/ai";
 import PageHeader from "../components/common/PageHeader";
-import { IMAGE_URL } from "../utils/constants";
+import { getPhotoUrl } from "../utils/imageHelpers";
 
 const RequestProfile = () => {
   const location = useLocation();
@@ -119,7 +119,7 @@ const RequestProfile = () => {
 <span className="text-black break-all">
   {field === "profilePhoto" && request[field] ? (
     <img
-      src={IMAGE_URL+request[field]}
+      src={getPhotoUrl(request[field])}
       alt="Profile"
       className="w-32 sm:w-40 h-32 sm:h-40 object-cover rounded-lg shadow-md"
     />
@@ -129,7 +129,7 @@ const RequestProfile = () => {
         {request[field].map((photo, idx) => (
           <img
             key={idx}
-            src={photo}
+            src={getPhotoUrl(photo)}
             alt={`Additional photo ${idx + 1}`}
             className="w-24 sm:w-32 h-24 sm:h-32 object-cover rounded-lg shadow-md"
           />

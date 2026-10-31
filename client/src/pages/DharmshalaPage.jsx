@@ -1,3 +1,4 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import { AiFillPlusCircle, AiOutlineUserAdd } from "react-icons/ai";
 import { useState, useEffect } from "react";
 import { FaSpinner, FaTrash, FaTrashAlt, FaXing } from "react-icons/fa";
@@ -166,8 +167,8 @@ const DharamsalaPage = () => {
 
   const handleImageUpload = (event) => {
     const files = Array.from(event.target.files);
-    if (imageFiles.length + files.length > 5) {
-      toast.error("You can upload a maximum of 5 images.");
+    if (imageFiles.length + files.length > 4) {
+      toast.error("You can upload a maximum of 4 images.");
       return;
     }
     setImageFiles((prev) => [...prev, ...files]);
@@ -412,9 +413,8 @@ const DharamsalaPage = () => {
                 />
                 <div className="flex flex-col space-y-4">
                   <label className="font-semibold">Upload Photos</label>
-                  <input
+                  <ImageUploadInput maxFiles={4 - imageFiles.length}
                     type="file"
-                    accept="image/*"
                     multiple
                     onChange={handleImageUpload}
                     className="border p-2 rounded-md"

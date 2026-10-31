@@ -1,3 +1,4 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 // import React, { useState, useEffect } from "react";
 // import PageHeader from "../components/common/PageHeader";
 // import { FaEdit, FaSpinner, FaTrashAlt } from "react-icons/fa";
@@ -808,7 +809,8 @@ import {
   FaEye,
 } from "react-icons/fa";
 import UserProfileCell from "../components/userProfileCell/UserProfileCell";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants"; // ✅ added subCasteOptions
+import { getPhotoUrl } from "../utils/imageHelpers";
+import { BASE_URL, subCasteOptions } from "../utils/constants"; // ✅ added subCasteOptions
 import { toast, ToastContainer } from "react-toastify";
 import Pagination from "../components/common/Pagination";
 import Modal from "react-modal";
@@ -1302,7 +1304,7 @@ const UserManagementPage = () => {
                     <td className="py-3 px-4">
                       {user.photoUrl?.[0] ? (
                         <img
-                          src={user.photoUrl[0]}
+                          src={getPhotoUrl(user.photoUrl[0])}
                           alt="User"
                           className="w-10 h-10 rounded-full object-cover border cursor-pointer"
                           onClick={() => openImageModal(user.photoUrl)}
@@ -1394,7 +1396,7 @@ const UserManagementPage = () => {
           <div className="flex justify-center items-center">
             {selectedImage ? (
               <img
-                src={IMAGE_URL + selectedImage}
+                src={getPhotoUrl(selectedImage)}
                 alt="Full View"
                 className="h-auto max-h-[35vh] sm:max-h-[80vh] rounded-md shadow object-contain cursor-pointer"
                 onClick={closeImageModal}
@@ -1431,7 +1433,7 @@ const UserManagementPage = () => {
             <div className="flex justify-center">
               {selectedUser.closeUpPhoto?.[0] ? (
                 <img
-                  src={selectedUser.closeUpPhoto[0]}
+                  src={getPhotoUrl(selectedUser.closeUpPhoto[0])}
                   alt="User Photo"
                   className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 object-cover rounded-full shadow-md border-4 border-indigo-200"
                 />
@@ -1733,9 +1735,8 @@ const UserManagementPage = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Close Up Photos (1–3) <span className="text-red-500">*</span>
               </label>
-              <input
+              <ImageUploadInput maxFiles={3}
                 type="file"
-                accept="image/jpeg,image/png,image/gif"
                 multiple
                 onChange={(e) => {
                   const files = Array.from(e.target.files);

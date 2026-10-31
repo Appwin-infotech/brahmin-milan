@@ -111,7 +111,7 @@ const createAdvertisement = async (req, res) => {
 
         mediaPaths.push({
           mediaType: isVideo ? "video" : "image",
-          mediaUrl: file.path.replace(/\\/g, "/"),
+          mediaUrl: `uploads/${file.filename}`,
           resolution: meta.resolution || { width: 1080, height: 720 },
           duration: meta.duration || 5,
           hyperlink: meta.hyperlink || null,
@@ -260,7 +260,7 @@ const updateAdvertisement = async (req, res) => {
         const meta = parsedMeta[i] || {};
         return {
           mediaType: isVideo(file) ? "video" : "image",
-          mediaUrl: file.path.replace(/\\/g, "/"),
+          mediaUrl: `uploads/${file.filename}`,
           resolution: meta.resolution || { width: 1080, height: 720 },
           duration: meta.duration || 5,
           hyperlink: meta.hyperlink || null,
@@ -415,7 +415,7 @@ const getAdvertisements = async (req, res) => {
     return res.status(500).json({
       status: false,
       message: "Failed to fetch advertisements",
-      error: err.message
+      error: error.message
     });
   }
 };
@@ -529,7 +529,7 @@ const updateDefaultAdvertisement = async (req, res) => {
 
         mediaPaths.push({
           mediaType: isVideo ? "video" : "image",
-          mediaUrl: file.path.replace(/\\/g, "/"),
+          mediaUrl: `uploads/${file.filename}`,
           resolution: meta.resolution || { width: 1080, height: 720 },
           duration: meta.duration || 5,
           hyperlink: meta.hyperlink || null,

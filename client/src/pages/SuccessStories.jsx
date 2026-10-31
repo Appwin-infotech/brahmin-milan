@@ -1,3 +1,4 @@
+import { getPhotoUrl } from "../utils/imageHelpers";
 import React, { useEffect, useState } from "react";
 import moment from "moment";
 import { toast, ToastContainer } from "react-toastify";
@@ -329,7 +330,7 @@ const SuccessStories = () => {
               {selectedStory?.photoUrl && (
                 <div>
                   <img
-                    src={BASE_URL+"/"+selectedStory.photoUrl}
+                    src={getPhotoUrl(selectedStory.photoUrl)}
                     alt="Wedding"
                     className="rounded-lg shadow-md max-h-64 object-cover"
                   />
@@ -388,7 +389,7 @@ const SuccessStories = () => {
           {editedStory?.photoUrl && (
             <div>
               <img
-                src={editedStory.photoUrl}
+                src={getPhotoUrl(editedStory.photoUrl)}
                 alt="Wedding"
                 className="rounded-lg shadow-md md:w-full max-h-64 object-cover"
               />

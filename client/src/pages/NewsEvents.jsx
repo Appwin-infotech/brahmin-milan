@@ -1,5 +1,6 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import React, { useEffect, useState } from "react";
-import { BASE_URL, IMAGE_URL } from "../utils/constants";
+import { BASE_URL } from "../utils/constants";
 import { toast, ToastContainer } from "react-toastify";
 import {
   FaEdit,
@@ -495,7 +496,7 @@ const EventPostsTable = () => {
                       className="flex items-center space-x-4 bg-gray-50 p-3 rounded-md shadow-sm"
                     >
                       <img
-                        src={user.photoUrl?.[0] || "/no-user.png"}
+                        src={getPhotoUrl(user.photoUrl?.[0]) || "/no-user.png"}
                         alt={user.username}
                         className="w-10 h-10 rounded-full object-cover"
                       />
@@ -647,9 +648,8 @@ const EventPostsTable = () => {
               );
             })}
           </div>
-          <input
+          <ImageUploadInput maxFiles={5}
             type="file"
-            accept="image/*"
             multiple
             onChange={(e) => setEditImages(e.target.files)}
             className="mb-3"

@@ -1,3 +1,4 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import React, { useState, useEffect } from "react";
 import PageHeader from "../components/common/PageHeader";
 import { FaEdit, FaRegTimesCircle, FaEye, FaSpinner } from "react-icons/fa";
@@ -5,6 +6,8 @@ import { BASE_URL } from "../utils/constants";
 import Modal from "../components/common/Modal";
 import Pagination from "../components/common/Pagination";
 import { ToastContainer } from "react-toastify";
+import { validateSubscriptionPlan } from "../utils/subscriptionValidation";
+import { readUploadResponse } from "../utils/imageValidation";
 
 const SubscriptionManagementPage = () => {
   const [subscriptions, setSubscriptions] = useState([]);
@@ -25,6 +28,8 @@ const SubscriptionManagementPage = () => {
     description: "",
   });
   const [newPhoto, setNewPhoto] = useState(null);
+  const [createError, setCreateError] = useState("");
+  const [editError, setEditError] = useState("");
   const [filters, setFilters] = useState({
     userId: "",
     username: "",
@@ -64,12 +69,13 @@ const SubscriptionManagementPage = () => {
   const handleCreatePlan = async (e) => {
     e.preventDefault();
 
-    // Validate required fields
-    const { profileType, trialPeriod, duration, amount, description } = newPlan;
-    if (!profileType || !trialPeriod || !duration || !amount || !description) {
-      alert("All fields except photo are required");
+    setCreateError("");
+    const validationError = validateSubscriptionPlan(newPlan, newPhoto, { creating: true });
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
+    const { profileType, trialPeriod, duration, amount, description } = newPlan;
 
     const formData = new FormData();
     formData.append('profileType', profileType);
@@ -90,10 +96,7 @@ const SubscriptionManagementPage = () => {
         body: formData
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to create plan");
-      }
+      await readUploadResponse(response);
 
       alert("Subscription plan created successfully");
       setShowCreateModal(false);
@@ -102,7 +105,9 @@ const SubscriptionManagementPage = () => {
       fetchSubscriptions(); // Refresh plans list
     } catch (error) {
     
-      alert(error.message || "Error creating plan");
+      setCreateError(error.message === "Failed to fetch"
+        ? "Upload failed. Try a smaller image (maximum 5 MB) or check your connection."
+        : error.message || "Error creating plan");
     }
   };
 
@@ -242,6 +247,13 @@ const SubscriptionManagementPage = () => {
       return;
     }
 
+    setEditError("");
+    const validationError = validateSubscriptionPlan(plan, selectedFiles[planId]);
+    if (validationError) {
+      setEditError(validationError);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('planId', plan._id);
     formData.append('profileType', plan.profileType);
@@ -262,21 +274,21 @@ const SubscriptionManagementPage = () => {
         body: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || data.message || "Failed to update subscription plan.");
-      }
+      await readUploadResponse(response);
 
       setEditing(null);
+      setSelectedFiles((prev) => { const next = { ...prev }; delete next[planId]; return next; });
       fetchSubscriptions();
       alert("Subscription plan updated successfully.");
     } catch (err) {
-      alert(err.message || "Failed to update subscription plan.");
+      setEditError(err.message === "Failed to fetch"
+        ? "Upload failed. Try a smaller image (maximum 5 MB) or check your connection."
+        : err.message || "Failed to update subscription plan.");
     }
   };
 
   const handleCancel = () => setEditing(null);
-  const handleEditClick = (planId) => setEditing(planId);
+  const handleEditClick = (planId) => { setEditError(""); setEditing(planId); };
 
   const handleDeletePlan = async (planId) => {
     if (window.confirm("Are you sure you want to delete this subscription plan?")) {
@@ -383,6 +395,7 @@ const SubscriptionManagementPage = () => {
                 <div className="mt-4">
                   {editing === plan._id ? (
                     <div className="space-y-4">
+                      {editError && <p role="alert" className="text-red-600 text-sm">{editError}</p>}
                       <div>
                         <label className="block text-sm font-medium text-gray-700">Trial Period (in days)</label>
                         <input
@@ -414,11 +427,20 @@ const SubscriptionManagementPage = () => {
                         />
                       </div>
                       <div>
+                        <label className="block text-sm font-medium text-gray-700">Description *</label>
+                        <textarea
+                          name="description"
+                          value={plan.description || ""}
+                          onChange={(e) => handleInputChange(e, plan._id)}
+                          className="mt-1 block w-full border px-3 py-2 rounded-md"
+                          required
+                        />
+                      </div>
+                      <div>
                         <label className="block text-sm font-medium text-gray-700">Photo (optional)</label>
-                        <input
+                        <ImageUploadInput onValidationError={setEditError}
                           type="file"
                           name="photo"
-                          accept="image/*"
                           onChange={(e) => handleFileChange(e, plan._id)}
                           className="mt-1 block w-full border px-3 py-2 rounded-md"
                         />
@@ -609,6 +631,7 @@ const SubscriptionManagementPage = () => {
           onSubmit= {handleCreatePlan}
           className="space-y-4"
         >
+          {createError && <p role="alert" className="text-red-600 text-sm">{createError}</p>}
           <div>
             <label className="block text-sm font-medium text-gray-700">Profile Type</label>
             <select
@@ -669,11 +692,10 @@ const SubscriptionManagementPage = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Photo (optional)</label>
-            <input
+            <label className="block text-sm font-medium text-gray-700">Photo *</label>
+            <ImageUploadInput required onValidationError={setCreateError}
               type="file"
               name="photo"
-              accept="image/*"
               onChange={handleNewPhotoChange}
               className="mt-1 block w-full border px-3 py-2 rounded-md"
             />

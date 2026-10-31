@@ -1,3 +1,4 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { FaEdit, FaSave } from "react-icons/fa";
@@ -71,8 +72,8 @@ const DharmshalaProfile = () => {
   // Handle newly selected files
   const handleImageUpload = (e) => {
     const filesArray = Array.from(e.target.files);
-    if (filesArray.length + formData.images.length - removedImages.length > 5) {
-      toast.error("You can upload a maximum of 5 images.");
+    if (filesArray.length + newFiles.length + formData.images.length - removedImages.length > 4) {
+      toast.error("You can upload a maximum of 4 images.");
       return;
     }
     setNewFiles(prev => [...prev, ...filesArray]);
@@ -258,10 +259,9 @@ const DharmshalaProfile = () => {
         <div className="mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-3">Gallery</h2>
           {isEditing && (
-            <input
+            <ImageUploadInput maxFiles={Math.max(0, 4 - formData.images.length + removedImages.length - newFiles.length)}
               type="file"
               multiple
-              accept="image/*"
               name="images"     
               onChange={handleImageUpload}
               className="mb-4 block border border-dashed rounded p-2 w-full"

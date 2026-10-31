@@ -1,7 +1,8 @@
+import { getPhotoUrl } from "../utils/imageHelpers";
 import React, { useEffect, useState } from "react";
 import moment from "moment";
 import { toast, ToastContainer } from "react-toastify";
-import { BASE_URL, IMAGE_URL } from "../utils/constants";
+import { BASE_URL } from "../utils/constants";
 import Pagination from "../components/common/Pagination";
 import { FaEye } from "react-icons/fa";
 
@@ -280,7 +281,7 @@ const SuccessStoryApprovals = () => {
               {selectedStory?.photoUrl && (
                 <div>
                   <img
-                    src={IMAGE_URL+selectedStory.photoUrl}
+                    src={getPhotoUrl(selectedStory.photoUrl)}
                     alt="Wedding"
                     className="rounded-lg shadow-md md:max-h-72 object-cover"
                   />

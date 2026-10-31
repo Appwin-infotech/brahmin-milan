@@ -1,3 +1,4 @@
+import { getPhotoUrl } from "../utils/imageHelpers";
 import React, { useEffect, useState } from "react";
 import PageHeader from "../components/common/PageHeader";
 import { BASE_URL } from "../utils/constants";
@@ -327,7 +328,7 @@ const handleDeleteFeedback = async (feedbackId) => {
         {selectedFeedBack?.userId?.photoUrl?.[0] && (
           <div>
             <img
-              src={selectedFeedBack.userId.photoUrl[0]}
+              src={getPhotoUrl(selectedFeedBack.userId.photoUrl[0])}
               alt="User"
               className="rounded-lg shadow-md max-h-64 object-cover"
             />

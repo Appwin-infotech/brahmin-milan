@@ -1,5 +1,5 @@
 import React from 'react';
-import { IMAGE_URL } from '../../utils/constants';
+import { getPhotoUrl } from "../../utils/imageHelpers";
 
 const StoryRequestCard = ({ request }) => {
   const photoUrl = request.photoUrl; // This is the uploaded couple image URL
@@ -12,7 +12,7 @@ const StoryRequestCard = ({ request }) => {
       {photoUrl && (
         <div className="mb-4">
           <img 
-            src={IMAGE_URL+photoUrl} 
+            src={getPhotoUrl(photoUrl)}
             alt="Couple's Wedding Story"
             className=" md:w-80 sm:h-50h-80 object-cover rounded-lg"
           />

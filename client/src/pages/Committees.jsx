@@ -1,8 +1,10 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
+import { getPhotoUrl } from "../utils/imageHelpers";
 import { AiFillPlusCircle } from "react-icons/ai";
 import React, { useState, useEffect } from "react";
 import { FaTrash, FaEdit, FaEye, FaSpinner, FaTimes } from "react-icons/fa";
 import PageHeader from "../components/common/PageHeader";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants";
+import { BASE_URL, subCasteOptions } from "../utils/constants";
 import Modal from "react-modal";
 import { toast, ToastContainer } from "react-toastify";
 import Pagination from "../components/common/Pagination";
@@ -33,7 +35,7 @@ const Committees = () => {
 
   //image open modal
   const openImageModal = (imageUrl) => {
-    setSelectedImage(IMAGE_URL + imageUrl);
+    setSelectedImage(getPhotoUrl(imageUrl));
     setShowImageModal(true);
   };
   const closeImageModal = () => {
@@ -356,9 +358,8 @@ const handleImageUpload = (e, type) => {
         />
 
         <label className="block font-semibold">Upload Photo</label>
-        <input
+        <ImageUploadInput
           type="file"
-          accept="image/*"
           onChange={(e) => handleImageUpload(e, "add")}
           className="border p-2 rounded-md w-full mb-2"
         />
@@ -440,7 +441,7 @@ const handleImageUpload = (e, type) => {
                   <td className="py-3 px-4">
                     {member.photoUrl ? (
                       <img
-                        src={IMAGE_URL + member.photoUrl}
+                        src={getPhotoUrl(member.photoUrl)}
                         alt="User"
                         className="w-10 h-10 rounded-full object-cover border cursor-pointer"
                         onClick={() => openImageModal(member.photoUrl)}
@@ -545,7 +546,7 @@ const handleImageUpload = (e, type) => {
                 </p>
                 {viewingMember.photoUrl && (
                   <img
-                    src={IMAGE_URL + viewingMember.photoUrl}
+                    src={getPhotoUrl(viewingMember.photoUrl)}
                     alt="Committee Member"
                     className="w-32 h-32 rounded-full object-cover border mt-3"
                   />
@@ -622,9 +623,8 @@ const handleImageUpload = (e, type) => {
         />
 
         <label className="block font-semibold">Upload New Photo</label>
-        <input
+        <ImageUploadInput
           type="file"
-          accept="image/*"
           onChange={(e) => handleImageUpload(e, "edit")}
           className="border p-2 rounded-md w-full mb-2"
         />
@@ -638,7 +638,7 @@ const handleImageUpload = (e, type) => {
           />
         ) : editingMember.photoUrl ? (
           <img
-            src={IMAGE_URL + editingMember.photoUrl}
+            src={getPhotoUrl(editingMember.photoUrl)}
             alt="Current"
             className="w-20 h-20 rounded-md object-cover border mb-2"
           />

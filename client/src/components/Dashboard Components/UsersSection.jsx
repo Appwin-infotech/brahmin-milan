@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { IMAGE_URL } from "../../utils/constants";
+import { getPhotoUrl } from "../../utils/imageHelpers";
 import { UserIcon } from "lucide-react";
 
 const UsersSection = ({ users }) => {
@@ -50,7 +50,7 @@ const UsersSection = ({ users }) => {
             {/* Profile Image */}
              {user.photoUrl && user.photoUrl.length > 0 ? (
                <img
-                 src={IMAGE_URL + user.photoUrl[0]}
+                 src={getPhotoUrl(user.photoUrl[0])}
                  alt={user.username}
                  className="w-24 h-24 rounded-full object-cover border"
                />

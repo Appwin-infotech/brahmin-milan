@@ -38,13 +38,15 @@ const { BASE_URL } = require("../utils/constants");
 const { UPLOAD_ROOT } = require("../config/multerConfig");
 
 const buildFileUrl = (fieldname, filename) =>
-  `${BASE_URL}/uploads/${fieldname}/${filename}`;
+  `${BASE_URL}/uploads/${fieldname === "closeUpPhoto" ? "closeUpPhoto/" : ""}${filename}`;
 
 const deleteUploadedFile = (fieldname, fileUrl) => {
   try {
     if (!fileUrl) return;
     const filename = fileUrl.split("/").pop();
-    const filePath = path.join(UPLOAD_ROOT, fieldname, filename);
+    const filePath = fieldname === "closeUpPhoto"
+      ? path.join(UPLOAD_ROOT, "closeUpPhoto", filename)
+      : path.join(UPLOAD_ROOT, filename);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -116,7 +118,7 @@ const committeeByAdmin = async (req, res) => {
     let photoUrlPath = null;
     if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
       // Save file path, replacing backslashes
-      photoUrlPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+      photoUrlPath = buildFileUrl("photoUrl", req.files.photoUrl[0].filename);
     }
 
     // Create new committee profile
@@ -193,7 +195,7 @@ const updateCommitteeByAdmin = async (req, res) => {
 
     // Handle photoUrl upload via multer (req.files.photoUrl)
     if (req.files?.photoUrl && req.files.photoUrl.length > 0) {
-      const uploadedPath = req.files.photoUrl[0].path.replace(/\\/g, "/");
+      const uploadedPath = buildFileUrl("photoUrl", req.files.photoUrl[0].filename);
       updateData.photoUrl = uploadedPath;
     }
 
@@ -3131,7 +3133,7 @@ const updateAdvertisementByAdmin = async (req, res) => {
         const meta = parsedMeta[i] || {};
         return {
           mediaType: isVideo(file) ? "video" : "image",
-          mediaUrl: file.path.replace(/\\/g, "/"),
+          mediaUrl: `uploads/${file.filename}`,
           resolution: meta.resolution || { width: 1080, height: 720 },
           duration: meta.duration || 5,
           hyperlink: meta.hyperlink || null,

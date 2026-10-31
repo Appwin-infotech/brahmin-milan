@@ -6,7 +6,7 @@ import {
   disconnectSocket,
 } from "../../socket/socket.client";
 import CustomToast from "./CustomToast";
-import { IMAGE_URL } from "./constants";
+import { getPhotoUrl } from "./imageHelpers";
 
 const SocketContext = createContext();
 export const useSocket = () => useContext(SocketContext);
@@ -108,7 +108,7 @@ const notificationHandlers = {
   // ✅ Handle any notification dynamically
 const handleNotification = (type, data) => {
   // Show toast
-  toast(<CustomToast message={data.message} photoUrl={IMAGE_URL+data.photoUrl} />, {
+  toast(<CustomToast message={data.message} photoUrl={getPhotoUrl(data.photoUrl)} />, {
     position: "top-right",
     autoClose: 3000,
     hideProgressBar: true,

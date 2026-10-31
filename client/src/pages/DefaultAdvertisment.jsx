@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { BASE_URL, IMAGE_URL } from "../utils/constants";
+import { BASE_URL } from "../utils/constants";
+import { getAdvertisementMediaUrl } from "../utils/imageHelpers";
+import { validateImageFiles } from "../utils/imageValidation";
 import PageHeader from "../components/common/PageHeader";
 import { AiFillPlusCircle, AiOutlineUserAdd } from "react-icons/ai";
 import { FaEdit, FaEye, FaSpinner, FaTrashAlt } from "react-icons/fa";
@@ -60,6 +62,21 @@ const DefaultAdvertisement = () => {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
+    const uploadError = validateImageFiles([...mediaFiles, ...files], {
+      maxFiles: form.section === "Bottom" ? 1 : 10,
+    });
+    if (uploadError) {
+      setErrors((prev) => ({
+        ...prev,
+        mediaFiles: uploadError,
+      }));
+      setMessage(uploadError);
+      e.target.value = "";
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, mediaFiles: "" }));
+    setMessage("");
     setMediaFiles((prev) => [...prev, ...files]);
     setMediaMeta((prev) => [
       ...prev,
@@ -69,6 +86,7 @@ const DefaultAdvertisement = () => {
         hyperlink: "",
       })),
     ]);
+    e.target.value = "";
   };
   const removeMedia = (idx) => {
     setMediaFiles((f) => f.filter((_, i) => i !== idx));
@@ -136,8 +154,13 @@ const DefaultAdvertisement = () => {
     if (!form.section.trim()) errs.section = "Section required";
     if (!form.targetProfileType)
       errs.targetProfileType = "Select at least one profile type";
-    if (!mediaFiles.length)
-      errs.mediaFiles = "At least one media file is required";
+    const imageError = validateImageFiles(mediaFiles, {
+      required: true, maxFiles: form.section === "Bottom" ? 1 : 10,
+    });
+    if (imageError) {
+      errs.mediaFiles = imageError;
+      setMessage(errs.mediaFiles);
+    }
     mediaMeta.forEach((m, i) => {
       if (!m.duration || !m.resolution.width || !m.resolution.height) {
         errs[`mediaMeta-${i}`] = "Fill duration & resolution";
@@ -169,6 +192,11 @@ const DefaultAdvertisement = () => {
           body: fd,
         }
       );
+      if (res.status === 413) {
+        throw new Error(
+          "Error: Upload is too large. Please choose a smaller image (maximum 5 MB per image)."
+        );
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMessage("Default Advertisement created!");
@@ -182,7 +210,11 @@ const DefaultAdvertisement = () => {
       setIsModalOpen(false);
       fetchAdvertisementData();
     } catch (err) {
-      setMessage(err.message);
+      setMessage(
+        err.message === "Failed to fetch"
+          ? "Error: Upload failed. Try a smaller image (maximum 5 MB per image) or check your connection."
+          : err.message
+      );
     } finally {
       setLoading(false);
     }
@@ -239,7 +271,7 @@ const DefaultAdvertisement = () => {
                   <td className="px-4 py-2">{ad.targetProfileType}</td>
                   <td className="px-4 py-2 space-y-1">
                     {ad.media.map((m, i) => {
-                      const url = `${IMAGE_URL}${m.mediaUrl}`;
+                      const url = getAdvertisementMediaUrl(m.mediaUrl);
                       return m.mediaType === "video" ? (
                         <video
                           key={i}
@@ -303,7 +335,7 @@ const DefaultAdvertisement = () => {
             </div>
 
             {message && (
-              <div className="mb-4 text-green-600 font-medium">{message}</div>
+              <div role="alert" className="mb-4 text-red-600 font-medium">{message}</div>
             )}
 
             <form
@@ -358,21 +390,28 @@ const DefaultAdvertisement = () => {
 
               {/* Media Upload */}
               <div>
-                <label className="block font-semibold mb-2">
-                  Media Files *
+                <label htmlFor="default-ad-images" className="block font-semibold mb-2">
+                  Images *
                 </label>
                 <input
                   type="file"
+                  id="default-ad-images"
                   multiple
-                  accept="image/*,video/*"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  aria-required="true"
+                  aria-invalid={!!errors.mediaFiles}
+                  aria-describedby="default-ad-image-requirements default-ad-image-error"
                   onChange={handleFileChange}
                   className="w-full text-sm"
                 />
-                {errors.mediaFiles && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.mediaFiles}
-                  </p>
-                )}
+                <p id="default-ad-image-requirements" className="text-gray-600 text-sm mt-1">
+                  At least one image is required. JPG, JPEG, PNG, or WEBP only.
+                  Maximum size: 5 MB per image.
+                  {form.section === "Bottom" ? " Select one image." : " Select up to 10 images."}
+                </p>
+                <p id="default-ad-image-error" role="alert" className="text-red-500 text-sm mt-1">
+                  {errors.mediaFiles}
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   {mediaFiles.map((f, i) => {
                     const isImg = f.type.startsWith("image");
@@ -501,9 +540,7 @@ const DefaultAdvertisement = () => {
             {/* Media Preview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
               {selectedAdvertisement.media?.map((item, idx) => {
-                const url = item.mediaUrl
-                  ? `${BASE_URL}/${item.mediaUrl}`
-                  : null;
+                const url = getAdvertisementMediaUrl(item.mediaUrl);
                 return (
                   <div key={idx} className="flex flex-col items-center">
                     {url ? (

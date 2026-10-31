@@ -1,9 +1,10 @@
+import { getPhotoUrl } from "../utils/imageHelpers";
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AiFillEdit, AiOutlineRollback } from "react-icons/ai";
 import axios from "axios";
 import PageHeader from "../components/common/PageHeader";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants";
+import { BASE_URL, subCasteOptions } from "../utils/constants";
 import { toast, ToastContainer } from "react-toastify";
 import NotFoundPage from "./NotFound";
 
@@ -315,9 +316,7 @@ const BioDataProfile = () => {
                         >
                           <img
                             src={
-                              photo.startsWith("http")
-                                ? photo
-                                : IMAGE_URL + photo
+                              getPhotoUrl(photo)
                             }
                             alt={`${label} ${i + 1}`}
                             className="h-64 w-full object-cover rounded-lg shadow-lg"

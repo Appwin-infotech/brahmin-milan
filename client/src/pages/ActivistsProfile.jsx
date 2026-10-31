@@ -1,8 +1,9 @@
+import ImageUploadInput from "../components/common/ImageUploadInput";
 import React, { useState, useEffect } from "react";
 import PageHeader from "../components/common/PageHeader";
 import Modal from "react-modal";
 import { FaSpinner, FaEye, FaEdit, FaTrashAlt } from "react-icons/fa";
-import { BASE_URL, IMAGE_URL, subCasteOptions } from "../utils/constants";
+import { BASE_URL, subCasteOptions } from "../utils/constants";
 import { toast, ToastContainer } from "react-toastify";
 import Pagination from "../components/common/Pagination";
 import { getPhotoUrl } from "../utils/imageHelpers";
@@ -539,7 +540,7 @@ const ActivistProfiles = () => {
         >
           <div className="flex justify-center">
             <img
-              src={BASE_URL + "/" + selectedImage}
+              src={getPhotoUrl(selectedImage)}
               alt="Full View"
               className="h-auto max-h-[35vh] sm:max-h-[35vh] rounded-md shadow object-contain cursor-pointer"
               onClick={closeImageModal}
@@ -565,7 +566,7 @@ const ActivistProfiles = () => {
               <div className="flex justify-center">
                 {selectedUser.profilePhoto ? (
                   <img
-                    src={selectedUser.profilePhoto}
+                    src={getPhotoUrl(selectedUser.profilePhoto)}
                     alt="User Photo"
                     className="w-36 h-36 sm:w-48 sm:h-48 object-cover rounded-full shadow-md border-4 border-indigo-200"
                   />
@@ -722,9 +723,8 @@ const ActivistProfiles = () => {
             className="w-full p-2 border rounded"
           />
 
-          <input
+          <ImageUploadInput
             type="file"
-            accept="image/*"
             onChange={(e) => {
               const file = e.target.files[0];
               if (file) {
@@ -737,7 +737,7 @@ const ActivistProfiles = () => {
 
           {(editImagePreview || editForm.profilePhoto) && (
             <img
-              src={editImagePreview || `${IMAGE_URL}${editForm.profilePhoto}`}
+              src={editImagePreview || getPhotoUrl(editForm.profilePhoto)}
               alt="Preview"
               className="w-20 h-20 object-cover rounded-full mt-2"
             />
