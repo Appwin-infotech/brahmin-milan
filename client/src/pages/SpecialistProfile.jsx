@@ -872,7 +872,7 @@ const SpecialistProfile = () => {
           <input
             type="text"
             className="p-2 border rounded-md bg-slate-100 text-slate-900"
-            placeholder="Search by Name...UserId"
+            placeholder="Search by name or user ID"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

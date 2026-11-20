@@ -95,7 +95,7 @@ const createPersonalDetails = async (req, res) => {
         new Date(subscription.endDate) > today
     );
 
-    if (!hasValidSubscription) {
+    if (!hasValidSubscription && !isAdmin) {
       cleanupUploadedCloseUpFiles(req.files);
       return res.status(400).json({
         status: false,

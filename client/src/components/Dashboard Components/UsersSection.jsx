@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { getPhotoUrl } from "../../utils/imageHelpers";
 import { UserIcon } from "lucide-react";
+import ZoomableImage from "../common/ZoomableImage";
 
 const UsersSection = ({ users }) => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ const UsersSection = ({ users }) => {
           >
             {/* Profile Image */}
              {user.photoUrl && user.photoUrl.length > 0 ? (
-               <img
+               <ZoomableImage
                  src={getPhotoUrl(user.photoUrl[0])}
                  alt={user.username}
                  className="w-24 h-24 rounded-full object-cover border"

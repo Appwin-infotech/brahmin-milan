@@ -149,7 +149,7 @@ const fetchAll = async () => {
 const summary = [
   { title: "Users",          count: data.users.length,             icon: <FaUsers />,          color: "bg-gradient-to-r from-blue-300 to-blue-500",   route: "/all-users" },
   { title: "Requests",       count: data.requests.length,          icon: <FaClipboardList />,  color: "bg-gradient-to-r from-indigo-300 to-indigo-500", route: "/profile-approvals" },
-  { title: "Story Req.",     count: data.storyRequests.length,     icon: <FaBookOpen />,       color: "bg-gradient-to-r from-green-300 to-green-500",  route: "/story-approvals" },
+  // { title: "Story Req.",     count: data.storyRequests.length,     icon: <FaBookOpen />,       color: "bg-gradient-to-r from-green-300 to-green-500",  route: "/story-approvals" },
   { title: "Reports",        count: data.reports.length,           icon: <FaFlag />,           color: "bg-gradient-to-r from-red-300 to-red-500",      route: "/profile-reports" },
   { title: "Feedbacks",      count: data.feedbacks.length,         icon: <FaComments />,       color: "bg-gradient-to-r from-yellow-300 to-yellow-500", route: "/feedbacks" },
   { title: "Matrimonial",    count: data.matrimonial.length,       icon: <FaRing />,           color: "bg-gradient-to-r from-pink-300 to-pink-500",     route: "/matrimonial-profiles" },
@@ -162,7 +162,7 @@ const summary = [
   { title: "Activists",      count: data.activists.length,         icon: <FaUserShield />,     color: "bg-gradient-to-r from-indigo-500 to-indigo-700", route: "/activist-profiles" },
   { title: "Ads",            count: data.advertisements.length,    icon: <FaBullhorn />,       color: "bg-gradient-to-r from-pink-500 to-pink-700",     route: "/create-Advertisement" },
   { title: "Def. Ads",       count: data.defaultAdvertisements.length, icon: <FaAd />,         color: "bg-gradient-to-r from-blue-500 to-blue-700",     route: "/default-Advertisement" },
-  { title: "Stories",        count: data.successStories.length,    icon: <FaRegNewspaper />,   color: "bg-gradient-to-r from-green-500 to-green-700",   route: "/success-stories" },
+  // { title: "Stories",        count: data.successStories.length,    icon: <FaRegNewspaper />,   color: "bg-gradient-to-r from-green-500 to-green-700",   route: "/success-stories" },
   { title: "Admin Notifs",   count: data.adminNotifications.length,icon: <FaBell />,           color: "bg-gradient-to-r from-gray-500 to-gray-700",     route: "/notifications" },
 ];
 

@@ -6,6 +6,7 @@ import Pagination from "../components/common/Pagination";
 import { FaEye, FaTrashAlt } from "react-icons/fa";
 import moment from "moment";
 import { ToastContainer } from "react-toastify";
+import ZoomableImage from "../components/common/ZoomableImage";
 const FeedbackManagementPage = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [filteredFeedbacks, setFilteredFeedbacks] = useState([]);
@@ -327,7 +328,7 @@ const handleDeleteFeedback = async (feedbackId) => {
         {/* User Photo */}
         {selectedFeedBack?.userId?.photoUrl?.[0] && (
           <div>
-            <img
+            <ZoomableImage
               src={getPhotoUrl(selectedFeedBack.userId.photoUrl[0])}
               alt="User"
               className="rounded-lg shadow-md max-h-64 object-cover"

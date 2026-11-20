@@ -28,6 +28,7 @@ router.post("/reviewSuccessStory/:status/:requestId", verifyAdminToken, controll
 router.get("/getAllRequests", verifyAdminToken, controller.getAllRequests);
 router.get("/getAllStoryRequests", verifyAdminToken, controller.getAllStoryRequests);
 router.get("/getAllUsers", verifyAdminToken, controller.getAllUsers);
+router.post("/createUserByAdmin", verifyAdminToken, controller.createUserByAdmin);
 router.get("/getAllReports", verifyAdminToken, controller.getAllReports);
 router.get("/specialists/:userType/:customId", controller.fetchSpecialist)
 router.patch('/specialists/:userType', controller.specialistController);
@@ -104,6 +105,7 @@ router.patch('/editSuccessStory/:id', verifyAdminToken, successStoryController.e
 router.delete('/delete-successStory/:id', verifyAdminToken, successStoryController.deleteSuccessStory);
 
 router.delete("/delete-eventPost/:postId", verifyAdminToken, controller.deleteEventPostById);
+router.delete("/deleteMultipleEventPosts", verifyAdminToken, controller.deleteMultipleEventPosts);
 router.patch(
   "/updateEventPostByAdmin/:postId",
   verifyAdminToken,

@@ -13,6 +13,7 @@ import Modal from "react-modal";
 import Pagination from "../components/common/Pagination";
 import PageHeader from "../components/common/PageHeader";
 import { getPhotoUrl } from "../utils/imageHelpers";
+import ZoomableImage from "../components/common/ZoomableImage";
 
 const EventPostsTable = () => {
   const [allPosts, setAllPosts] = useState([]);
@@ -38,6 +39,8 @@ const EventPostsTable = () => {
   });
   const [editImages, setEditImages] = useState([]); // For new uploads
   const [editLoading, setEditLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("authToken");
@@ -224,6 +227,52 @@ const EventPostsTable = () => {
       alert("Failed to delete advertisement: " + err.message);
     }
   };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredPosts.map((post) => post._id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((_id) => _id !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) {
+      toast.warning("Please select at least one event post to delete.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedIds.length} selected event post(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/admin/deleteMultipleEventPosts`, {
+        method: "DELETE",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.status) {
+        throw new Error(data.message || "Failed to delete event posts.");
+      }
+
+      toast.success(data.message || "Event posts deleted successfully.");
+      setSelectedIds([]);
+      setSelectAll(false);
+      fetchEventPosts();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete event posts.");
+    }
+  };
   const closeModal = () => {
     setSelectedPost(null);
   };
@@ -319,9 +368,26 @@ const EventPostsTable = () => {
               Showing {filteredPosts.length} result
               {filteredPosts.length !== 1 && "s"}
             </div>
+            {selectedIds.length > 0 && (
+              <div className="mb-4">
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Delete Selected ({selectedIds.length})
+                </button>
+              </div>
+            )}
             <table className="min-w-full table-auto bg-slate-50 rounded-lg shadow-md overflow-hidden">
               <thead className="bg-slate-900 text-slate-100">
                 <tr>
+                  <th className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={toggleSelectAll}
+                    />
+                  </th>
                   <th className="px-4 py-2 ">No</th>
                   <th className="px-4 py-2 ">Image</th>
                   {/* <th className="px-4 py-2 ">Title</th> */}
@@ -335,7 +401,7 @@ const EventPostsTable = () => {
               <tbody>
                 {currentPosts.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-4 text-gray-500">
+                    <td colSpan="9" className="text-center py-4 text-gray-500">
                       No posts found.
                     </td>
                   </tr>
@@ -345,6 +411,13 @@ const EventPostsTable = () => {
                       key={post._id}
                       className="text-sm hover:bg-gray-50 text-center"
                     >
+                      <td className="px-4 py-2 border">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(post._id)}
+                          onChange={() => toggleSelectOne(post._id)}
+                        />
+                      </td>
                       <td className="px-4 py-2 border">
                         {indexOfFirstItem + index + 1}
                       </td>
@@ -495,7 +568,7 @@ const EventPostsTable = () => {
                       key={user._id}
                       className="flex items-center space-x-4 bg-gray-50 p-3 rounded-md shadow-sm"
                     >
-                      <img
+                      <ZoomableImage
                         src={getPhotoUrl(user.photoUrl?.[0]) || "/no-user.png"}
                         alt={user.username}
                         className="w-10 h-10 rounded-full object-cover"
@@ -529,7 +602,7 @@ const EventPostsTable = () => {
                     key={comment._id}
                     className="flex items-start space-x-3 bg-gray-50 p-3 rounded-md shadow-sm"
                   >
-                    <img
+                    <ZoomableImage
                       src={
                         getPhotoUrl(comment.user?.photoUrl?.[0]) ||
                         "/no-user.png"

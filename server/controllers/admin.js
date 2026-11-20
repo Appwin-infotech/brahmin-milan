@@ -36,6 +36,7 @@ const path = require("path");
 const fs = require("fs");
 const { BASE_URL } = require("../utils/constants");
 const { UPLOAD_ROOT } = require("../config/multerConfig");
+const { getNextUserId } = require("../utils/getNextUserId");
 
 const buildFileUrl = (fieldname, filename) =>
   `${BASE_URL}/uploads/${fieldname === "closeUpPhoto" ? "closeUpPhoto/" : ""}${filename}`;
@@ -1776,12 +1777,15 @@ const specialistController = async (req, res) => {
     const query = {};
 
     if (search) {
+      const searchOptions = { $regex: search, $options: "i" };
+      const linkedUserIds = await User.find({ userId: searchOptions }).distinct("_id");
       query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { mobileNo: { $regex: search, $options: "i" } },
-        { city: { $regex: search, $options: "i" } },
-        { state: { $regex: search, $options: "i" } },
-        { [field]: { $regex: search, $options: "i" } },
+        { fullName: searchOptions },
+        { mobileNo: searchOptions },
+        { city: searchOptions },
+        { state: searchOptions },
+        { [field]: searchOptions },
+        { userId: { $in: linkedUserIds } },
       ];
     }
 
@@ -2158,6 +2162,47 @@ const getAllUsers = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
+    // Older accounts may have their photo only on a specialist or biodata
+    // profile, rather than on User.photoUrl. Use that photo as a display fallback.
+    const usersMissingPhoto = users.filter(
+      (user) => !Array.isArray(user.photoUrl) || user.photoUrl.length === 0
+    );
+    if (usersMissingPhoto.length > 0) {
+      const userIds = usersMissingPhoto.map((user) => user._id);
+      const [panditProfiles, kathavachakProfiles, jyotishProfiles, activistProfiles, biodataProfiles] =
+        await Promise.all([
+          Pandit.find({ userId: { $in: userIds } }).select("userId profilePhoto").lean(),
+          Kathavachak.find({ userId: { $in: userIds } }).select("userId profilePhoto").lean(),
+          Jyotish.find({ userId: { $in: userIds } }).select("userId profilePhoto").lean(),
+          Activist.find({ userId: { $in: userIds } }).select("userId profilePhoto").lean(),
+          Biodata.find({ userId: { $in: userIds } }).select("userId closeUpPhoto").lean(),
+        ]);
+
+      const profilePhotosByUserId = new Map();
+      for (const profile of [
+        ...panditProfiles,
+        ...kathavachakProfiles,
+        ...jyotishProfiles,
+        ...activistProfiles,
+      ]) {
+        const profilePhoto = profile.profilePhoto;
+        if (profilePhoto && !profilePhotosByUserId.has(profile.userId.toString())) {
+          profilePhotosByUserId.set(profile.userId.toString(), profilePhoto);
+        }
+      }
+      for (const profile of biodataProfiles) {
+        const profilePhoto = profile.closeUpPhoto?.[0];
+        if (profilePhoto && !profilePhotosByUserId.has(profile.userId.toString())) {
+          profilePhotosByUserId.set(profile.userId.toString(), profilePhoto);
+        }
+      }
+
+      for (const user of usersMissingPhoto) {
+        const fallbackPhoto = profilePhotosByUserId.get(user._id.toString());
+        if (fallbackPhoto) user.photoUrl = [fallbackPhoto];
+      }
+    }
+
     if (users.length === 0) {
       return res.status(200).json({
         status: true,
@@ -2171,6 +2216,70 @@ const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ status: false, message: "Internal server error" });
+  }
+};
+
+const createUserByAdmin = async (req, res) => {
+  try {
+    const username = String(req.body.username || "").trim();
+    const mobileNo = String(req.body.mobileNo || "").trim();
+    const city = String(req.body.city || "").trim();
+    const gender = String(req.body.gender || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+
+    if (!username || !mobileNo || !city || !gender || !password) {
+      return res.status(400).json({
+        status: false,
+        message: "Name, mobile number, city, gender, and password are required.",
+      });
+    }
+
+    if (!/^(?:\+91|91|0)?[6-9]\d{9}$/.test(mobileNo)) {
+      return res.status(400).json({
+        status: false,
+        message: "Enter a valid mobile number.",
+      });
+    }
+
+    if (!["male", "female"].includes(gender)) {
+      return res.status(400).json({ status: false, message: "Invalid gender value." });
+    }
+
+    if (await User.findOne({ mobileNo })) {
+      return res.status(409).json({
+        status: false,
+        message: "A user with this mobile number already exists.",
+      });
+    }
+
+    const user = await User.create({
+      userId: await getNextUserId(),
+      username,
+      mobileNo,
+      city,
+      gender,
+      password: await bcrypt.hash(password, 10),
+    });
+
+    return res.status(201).json({
+      status: true,
+      message: "User created successfully.",
+      user: {
+        _id: user._id,
+        userId: user.userId,
+        username: user.username,
+        mobileNo: user.mobileNo,
+        city: user.city,
+        gender: user.gender,
+        access: user.access,
+        isMatrimonial: user.isMatrimonial,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Failed to create user.",
+    });
   }
 };
 
@@ -2735,6 +2844,35 @@ const deleteEventPostById = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+const deleteMultipleEventPosts = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        status: false,
+        message: "No event post IDs provided for deletion.",
+      });
+    }
+
+    const result = await EventPost.deleteMany({ _id: { $in: ids } });
+    await Notification.deleteMany({
+      "relatedData.postId": { $in: ids },
+      notificationType: { $in: ["like", "comment", "eventPostCreated"] },
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: `${result.deletedCount} Event post(s) deleted successfully.`,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: false,
+      message: "Failed to delete event posts.",
+      error: err.message,
+    });
   }
 };
 
@@ -3781,6 +3919,7 @@ module.exports = {
   getAllMetrimonial,
   setMetrionial_ActivityStatus,
   getAllUsers,
+  createUserByAdmin,
   updateUserAccess,
   getBiodataById,
   getBiodataByUserAdmin,
@@ -3800,6 +3939,7 @@ module.exports = {
   updateDharmshalaById,
   deleteDharmshalaById,
   deleteEventPostById,
+  deleteMultipleEventPosts,
   deleteActivistProfile,
   getAllNotificationsForAdmin,
   getActivistProfileById,

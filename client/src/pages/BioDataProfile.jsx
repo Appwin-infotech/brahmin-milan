@@ -7,6 +7,7 @@ import PageHeader from "../components/common/PageHeader";
 import { BASE_URL, subCasteOptions } from "../utils/constants";
 import { toast, ToastContainer } from "react-toastify";
 import NotFoundPage from "./NotFound";
+import ZoomableImage from "../components/common/ZoomableImage";
 
 const BioDataProfile = () => {
   const { id } = useParams();
@@ -314,7 +315,7 @@ const BioDataProfile = () => {
                           key={`${key}-${i}`}
                           className="flex flex-col items-center gap-2"
                         >
-                          <img
+                          <ZoomableImage
                             src={
                               getPhotoUrl(photo)
                             }

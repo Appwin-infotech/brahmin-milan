@@ -1,5 +1,6 @@
 import React from 'react';
 import { getPhotoUrl } from "../../utils/imageHelpers";
+import ZoomableImage from "../common/ZoomableImage";
 
 const StoryRequestCard = ({ request }) => {
   const photoUrl = request.photoUrl; // This is the uploaded couple image URL
@@ -11,7 +12,7 @@ const StoryRequestCard = ({ request }) => {
       {/* Show the image only if photoUrl is available */}
       {photoUrl && (
         <div className="mb-4">
-          <img 
+          <ZoomableImage
             src={getPhotoUrl(photoUrl)}
             alt="Couple's Wedding Story"
             className=" md:w-80 sm:h-50h-80 object-cover rounded-lg"

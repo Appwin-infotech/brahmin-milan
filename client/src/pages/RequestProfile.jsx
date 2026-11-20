@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AiOutlineRollback } from "react-icons/ai";
 import PageHeader from "../components/common/PageHeader";
 import { getPhotoUrl } from "../utils/imageHelpers";
+import ZoomableImage from "../components/common/ZoomableImage";
 
 const RequestProfile = () => {
   const location = useLocation();
@@ -118,7 +119,7 @@ const RequestProfile = () => {
                     </strong>
 <span className="text-black break-all">
   {field === "profilePhoto" && request[field] ? (
-    <img
+    <ZoomableImage
       src={getPhotoUrl(request[field])}
       alt="Profile"
       className="w-32 sm:w-40 h-32 sm:h-40 object-cover rounded-lg shadow-md"
@@ -127,7 +128,7 @@ const RequestProfile = () => {
     request[field].length > 0 ? (
       <div className="flex flex-wrap gap-4">
         {request[field].map((photo, idx) => (
-          <img
+          <ZoomableImage
             key={idx}
             src={getPhotoUrl(photo)}
             alt={`Additional photo ${idx + 1}`}

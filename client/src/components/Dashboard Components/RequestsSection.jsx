@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { getPhotoUrl } from "../../utils/imageHelpers";
+import ZoomableImage from "../common/ZoomableImage";
 
 const RequestsSection = ({ requests }) => {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ const RequestsSection = ({ requests }) => {
             className="border rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center gap-4 hover:shadow-md transition"
           >
             {req.profilePhoto && (
-              <img
+              <ZoomableImage
                 src={getPhotoUrl(req.profilePhoto)}
                 alt={req.fullName}
                 className="w-20 h-20 rounded-full object-cover border"

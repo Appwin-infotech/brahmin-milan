@@ -6,7 +6,7 @@ const eventPostSchema = new mongoose.Schema({
   activistId: { type: String, ref: "Activist", required: true },
   activistName: { type: String, required: true },
   title: { type: String, required: false },
-  description: { type: String, required: true },
+  description: { type: String, required: false },
   images: {
     type: [String],
     validate: {

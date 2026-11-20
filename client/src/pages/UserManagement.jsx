@@ -868,9 +868,18 @@ const UserManagementPage = () => {
   const [biodataForm, setBiodataForm] = useState(emptyBiodataForm);
   const [biodataPhotos, setBiodataPhotos] = useState([]); // closeUpPhoto files (1–3)
   const [isCreatingBiodata, setIsCreatingBiodata] = useState(false);
+  const [isNewUserModalOpen, setIsNewUserModalOpen] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    username: "",
+    mobileNo: "",
+    city: "",
+    gender: "",
+    password: "",
+  });
 
   const openImageModal = (imageUrl) => {
-    setSelectedImage(imageUrl);
+    setSelectedImage(Array.isArray(imageUrl) ? imageUrl[0] : imageUrl);
     setShowImageModal(true);
   };
 
@@ -1089,11 +1098,43 @@ const UserManagementPage = () => {
   const closeModal = () => setSelectedUser(null);
 
   // ✅ Point 15 — Open biodata creation modal for a specific user
-  const handleOpenBiodataModal = (user) => {
+  const handleOpenBiodataModal = (user, prefillFromAccount = false) => {
     setBiodataTargetUser(user);
-    setBiodataForm(emptyBiodataForm);
+    setBiodataForm(prefillFromAccount ? {
+      ...emptyBiodataForm,
+      gender: user.gender || "",
+      fullname: user.username || "",
+      contactNumber1: user.mobileNo || "",
+    } : emptyBiodataForm);
     setBiodataPhotos([]);
     setIsBiodataModalOpen(true);
+  };
+
+  const handleCreateNewUser = async (e) => {
+    e.preventDefault();
+    setIsCreatingUser(true);
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/v1/admin/createUserByAdmin`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newUserForm),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.status) {
+        throw new Error(data.message || "Failed to create user.");
+      }
+
+      toast.success(`User ${data.user.username} created successfully.`);
+      setIsNewUserModalOpen(false);
+      setNewUserForm({ username: "", mobileNo: "", city: "", gender: "", password: "" });
+      fetchUsers();
+      handleOpenBiodataModal(data.user, true);
+    } catch (error) {
+      toast.error(error.message || "Failed to create user.");
+    } finally {
+      setIsCreatingUser(false);
+    }
   };
 
   // ✅ Point 15 — Handle photo file selection (max 3)
@@ -1274,6 +1315,12 @@ const UserManagementPage = () => {
           >
             Reset Filters
           </button>
+          <button
+            onClick={() => setIsNewUserModalOpen(true)}
+            className="p-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Create User & Biodata
+          </button>
         </div>
 
         <div className="mb-4 text-gray-700 font-medium">
@@ -1431,9 +1478,9 @@ const UserManagementPage = () => {
         >
           <div className="space-y-6">
             <div className="flex justify-center">
-              {selectedUser.closeUpPhoto?.[0] ? (
+              {selectedUser.photoUrl?.[0] || selectedUser.closeUpPhoto?.[0] ? (
                 <img
-                  src={getPhotoUrl(selectedUser.closeUpPhoto[0])}
+                  src={getPhotoUrl(selectedUser.photoUrl?.[0] || selectedUser.closeUpPhoto[0])}
                   alt="User Photo"
                   className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 object-cover rounded-full shadow-md border-4 border-indigo-200"
                 />
@@ -1630,6 +1677,92 @@ const UserManagementPage = () => {
             </div>
           </form>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={isNewUserModalOpen}
+        onRequestClose={() => setIsNewUserModalOpen(false)}
+        contentLabel="Create User"
+        className="w-[95vw] max-w-xl mx-auto mt-20 bg-white p-6 rounded-2xl shadow-lg outline-none"
+        overlayClassName="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-2 ml-20"
+      >
+        <h2 className="text-xl font-bold text-gray-800 mb-5">Create User</h2>
+        <form onSubmit={handleCreateNewUser} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input
+              required
+              type="text"
+              value={newUserForm.username}
+              onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
+              className="w-full p-2 border rounded-md"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+              <input
+                required
+                type="tel"
+                value={newUserForm.mobileNo}
+                onChange={(e) => setNewUserForm({ ...newUserForm, mobileNo: e.target.value })}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <input
+                required
+                type="text"
+                value={newUserForm.city}
+                onChange={(e) => setNewUserForm({ ...newUserForm, city: e.target.value })}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <select
+                required
+                value={newUserForm.gender}
+                onChange={(e) => setNewUserForm({ ...newUserForm, gender: e.target.value })}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Initial Password</label>
+              <input
+                required
+                type="password"
+                autoComplete="new-password"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-3">
+            <button
+              type="button"
+              onClick={() => setIsNewUserModalOpen(false)}
+              className="px-4 py-2 border rounded-md"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingUser}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {isCreatingUser ? "Creating..." : "Create User & Continue"}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* ✅ Point 15 — Create Biodata Modal */}

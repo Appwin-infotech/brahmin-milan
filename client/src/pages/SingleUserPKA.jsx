@@ -12,6 +12,7 @@ import PageHeader from "../components/common/PageHeader";
 import NotFoundPage from "./NotFound";
 import { BASE_URL } from "../utils/constants";
 import { getPhotoUrl } from "../utils/imageHelpers";
+import ZoomableImage from "../components/common/ZoomableImage";
 
 const SingleUserPKA = () => {
   const { userType, id } = useParams();
@@ -300,7 +301,7 @@ const SingleUserPKA = () => {
             <div className="flex items-center gap-4">
               {profilePhoto ? (
                 <div className="relative">
-                  <img
+                  <ZoomableImage
                     src={getPhotoUrl(profilePhoto)}
                     alt="Profile"
                     className="h-24 w-24 object-cover rounded"
@@ -341,7 +342,7 @@ const SingleUserPKA = () => {
             <div className="flex flex-wrap gap-4">
               {additionalPhotos.map((img, idx) => (
                 <div key={idx} className="relative">
-                  <img
+                  <ZoomableImage
                     src={getPhotoUrl(img)}
                     alt={`additional-${idx}`}
                     className="h-24 w-24 object-cover rounded"

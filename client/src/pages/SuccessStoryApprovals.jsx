@@ -5,6 +5,7 @@ import { toast, ToastContainer } from "react-toastify";
 import { BASE_URL } from "../utils/constants";
 import Pagination from "../components/common/Pagination";
 import { FaEye } from "react-icons/fa";
+import ZoomableImage from "../components/common/ZoomableImage";
 
 const SuccessStoryApprovals = () => {
   const [stories, setStories] = useState([]);
@@ -280,7 +281,7 @@ const SuccessStoryApprovals = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {selectedStory?.photoUrl && (
                 <div>
-                  <img
+                  <ZoomableImage
                     src={getPhotoUrl(selectedStory.photoUrl)}
                     alt="Wedding"
                     className="rounded-lg shadow-md md:max-h-72 object-cover"
